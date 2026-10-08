@@ -56,9 +56,14 @@ this project is an RTX 5060 Ti 16 GB, which clears every backend listed in
 
 | backend | download | VRAM floor | licence note |
 |---|---|---|---|
-| `ltx-video-2b` | ~9 GB | 8 GB | fastest; its own open-weights licence, not an OSI one |
+| `ltx-video-2b` | 27 GB (fp32 on disk) | 8 GB | fastest; its own open-weights licence, not an OSI one |
 | `svd-xt` | ~10 GB | 10 GB | image-to-video only, fixed 25 frames, community licence |
 | `wan-2.1-i2v` | ~30 GB | 16 GB | highest quality, heaviest |
+
+Verified end to end on an RTX 5060 Ti 16 GB: 27 GB download, 4 m 47 s to load,
+11 m 30 s for 50 steps, 18 m 37 s total for a 73-frame 512x768 clip. The download
+is the smaller half of the cost; loading fp32 weights off disk is the larger half
+for a short clip.
 
 Check the licence of whichever you pick against what you intend to do with the
 output. Two of the three are not OSI-approved licences.

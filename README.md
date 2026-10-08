@@ -14,12 +14,23 @@ valid `from` in a motion spec.
 
 - A CUDA GPU with 10 GB or more of VRAM.
 - `torch` (CUDA build) and `diffusers`.
-- One model download, 9 to 30 GB depending on the backend.
+- One model download, roughly 10 to 30 GB depending on the backend (LTX-Video 2B is
+  27 GB as shipped, see below).
 
 ```bash
-python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu124
-python3 -m pip install diffusers transformers accelerate imageio[ffmpeg] pillow
+python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+python3 -m pip install -r requirements-gpu.txt
 ```
+
+`requirements-gpu.txt` is the exact set that produced a clip, with the reasons. Two
+points in it are not optional and are easy to get wrong:
+
+- **cu128, not cu124.** Blackwell (compute capability 12.0) has no kernels in the
+  cu124 builds. And the default PyPI wheel on Windows is CPU-only, which is how you
+  get "torch is installed but no CUDA device is visible".
+- **`sentencepiece` and `protobuf`.** The T5 tokenizer is a SentencePiece model.
+  Without these, transformers falls back to a tiktoken extractor that cannot parse
+  it, and the run dies *after* loading 27 GB. `check` now names them up front.
 
 ## Use
 
@@ -73,9 +84,39 @@ with a sentence naming the clip, not a stack trace.
 
 | backend | download | VRAM floor | note |
 |---|---|---|---|
-| `ltx-video-2b` | ~9 GB | 8 GB | fastest. Its own open-weights licence, not an OSI one |
+| `ltx-video-2b` | **27 GB measured** | 8 GB | fastest. Its own open-weights licence, not an OSI one |
 | `svd-xt` | ~10 GB | 10 GB | image-to-video, fixed 25 frames, community licence |
 | `wan-2.1-i2v` | ~30 GB | 16 GB | highest quality, heaviest |
+
+That 27 GB is not a guess, and it is not the ~9 GB an earlier version of this file
+claimed. The `Lightricks/LTX-Video` repo ships **fp32** weights: a 19 GB T5-XXL text
+encoder in four shards, a 7.7 GB transformer, and a 1.7 GB VAE. They load into
+roughly half that as bf16, which is why a 16 GB card fits with about 400 MB to
+spare. Budget disk, not VRAM.
+
+## Measured on real hardware
+
+One clip, end to end, on an RTX 5060 Ti 16 GB (compute capability 12.0), 512x768,
+73 frames, 50 steps:
+
+| stage | measured |
+|---|---|
+| downloading the weights | 6 m 13 s (once) |
+| loading them from disk (fp32, 27 GB) | **4 m 47 s** |
+| denoising, 50 steps | **11 m 30 s** |
+| **total wall clock** | **18 m 37 s** |
+| output | 73 frames, 512x768, h264, 24 fps, 3.04 s, 34 KB |
+
+Two things worth knowing before you plan around it:
+
+- **Loading is disk-bound and not small.** Nearly five minutes before a single step
+  runs, because 27 GB is read from disk. This dominates short clips.
+- **The first steps are much slower than the rest** (15 to 69 s each, settling to
+  about 4.2 s/step). That is VRAM pressure at the ceiling: the run holds 15.9 of
+  16.3 GB. Dropping `size` or `steps` buys headroom and time.
+
+`forge_motion.py check` will tell you your own machine's numbers before you spend
+the download.
 
 ## Tests
 
