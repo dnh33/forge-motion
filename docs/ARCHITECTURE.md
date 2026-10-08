@@ -1,5 +1,10 @@
 # Why forge-motion is hybrid
 
+> **Status: experimental, and not the default.** The supported way to produce
+> imagery here is the cloud pipeline ([forge-images](https://github.com/dnh33/forge-images)).
+> A local run saturated the display's VRAM and froze the machine it ran on, which
+> is why the local path is kept for experimentation and nothing depends on it.
+
 This document exists so the split is not mistaken for a shortcut. It is a
 constraint, and the constraint is severe.
 
@@ -30,8 +35,8 @@ timeout. The estimate is labelled as an estimate on purpose.
 
 | half | where | what it does |
 |---|---|---|
-| **frames** | CI, free | generate the still the motion starts from. This is [`forge-images`](https://github.com/dnh33/forge-images), unchanged. |
-| **motion** | your GPU | an image-to-video pass over that still. This repository. |
+| **frames** | CI, free | generate the still the motion starts from. This is [`forge-images`](https://github.com/dnh33/forge-images), unchanged. **This is the default path.** |
+| **motion** | your GPU | an image-to-video pass over that still. This repository. **Experimental: it can freeze the machine.** |
 
 The consult point is a file: a PNG in `renders/<set>/` on the images repo is a
 valid `from` in a motion spec. No service, no queue, no account.

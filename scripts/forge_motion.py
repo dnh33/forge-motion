@@ -292,6 +292,14 @@ def render(clip: Clip, out_dir: Path, report: dict) -> Path:
     from diffusers.utils import export_to_video  # type: ignore  # noqa: PLC0415
     from PIL import Image  # noqa: PLC0415
 
+    print(
+        "warning: this loads the whole model onto the GPU and will saturate VRAM\n"
+        "         that the display also needs. On a desktop machine that can stall\n"
+        "         the session. This local path is experimental; the cloud pipeline\n"
+        "         (forge-images) is the supported way to produce imagery.",
+        file=sys.stderr,
+    )
+
     model_id = BACKENDS[clip.backend]["repo"]
     pipe = LTXImageToVideoPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
     # The T5-XXL text encoder alone is about 9 GB in bf16, so tiling the decode is

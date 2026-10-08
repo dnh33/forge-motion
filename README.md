@@ -1,14 +1,37 @@
 # forge-motion
 
+> ## Status: EXPERIMENTAL. Not the default path.
+>
+> **The default way to produce imagery in this project is the cloud pipeline:
+> [forge-images](https://github.com/dnh33/forge-images), running on GitHub's
+> runners.** It is slow, and that is an accepted trade. It costs nothing, it needs
+> nothing installed, and it cannot affect the machine you are sitting at.
+>
+> This repository is a **local GPU experiment**. It works, and every number below
+> is measured on real hardware, but the run **saturated the VRAM that the display
+> also needs and froze the owner's PC**. It is kept as a record and for
+> deliberate experimentation. It is not recommended, and it is not the path any
+> tooling here should reach for by default.
+
 Turn a still into a short clip, on your own GPU.
 
-This is the motion half of a hybrid pipeline. Still images are generated in CI for
-free by [`forge-images`](https://github.com/dnh33/forge-images); motion is
-synthesised locally, because video diffusion does not fit a free CPU runner. The
-reasoning, with the numbers, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Still images come from the cloud pipeline; motion is synthesised locally, because
+video diffusion does not fit a free CPU runner at any sane cost. The reasoning,
+with the numbers, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 The consult point between the two halves is a file: a PNG on the images repo is a
 valid `from` in a motion spec.
+
+## Read this before running it
+
+A clip needs the whole model resident: this run held **15.9 of the card's 16.3 GB**.
+On a machine whose GPU also drives the display, that is enough to stall the desktop,
+and it did. If you run this anyway:
+
+- Do it on a machine you are not otherwise using, or with the display on a
+  different adapter.
+- Expect the first steps to crawl (15 to 69 s each) before settling near 4.2 s.
+- Expect ~5 minutes of disk-bound loading before the first step, every time.
 
 ## What it needs
 
