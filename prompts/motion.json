@@ -1,0 +1,15 @@
+{
+  "name": "Motion studies",
+  "notes": "One clip per item. 'from' is the still the motion starts from; forge-images publishes these under renders/<set>/. The committed seed.png is a placeholder so `plan` works out of the box.",
+  "clips": {
+    "seed-drift": {
+      "from": "prompts/seed.png",
+      "prompt": "slow ember drift upward past the subject, faint heat haze, camera pushes in",
+      "backend": "ltx-video-2b",
+      "fps": 24,
+      "seconds": 3,
+      "size": [512, 768],
+      "seed": 7
+    }
+  }
+}
