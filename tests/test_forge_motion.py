@@ -96,7 +96,8 @@ def test_defaults_are_applied(tmp_path):
     c = clips[0]
     assert c.backend == fm.DEFAULT_BACKEND
     assert c.fps == 24 and c.seconds == 3
-    assert c.frames == 72, "3 seconds at 24 fps"
+    assert c.frames == 73, "3 seconds at 24 fps is 72, snapped up to the 8n+1 grid"
+    assert c.requested_frames == 72
     assert c.size == [512, 768]
     assert c.source == img
 
@@ -104,7 +105,25 @@ def test_defaults_are_applied(tmp_path):
 def test_frames_follow_seconds_and_fps(tmp_path):
     spec_path, img = make_spec(tmp_path, {"a": {"prompt": "p", "fps": 12, "seconds": 2.5}})
     clips = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)
-    assert clips[0].frames == 30
+    assert clips[0].requested_frames == 30
+    assert clips[0].frames == 33, "30 is off the 8n+1 grid the video VAE needs"
+
+
+def test_frames_are_snapped_to_the_vae_grid(tmp_path):
+    """LTX's video VAE compresses time by 8, so num_frames must be 8n+1."""
+    for requested in (1, 2, 7, 8, 9, 30, 72, 73, 100):
+        n = fm.align_frames(requested)
+        assert n % 8 == 1, f"{requested} -> {n} is not 8n+1"
+        assert n >= requested, f"{requested} -> {n} lost frames"
+        assert n - 8 < requested, f"{requested} -> {n} is not the smallest such value"
+
+
+def test_a_clip_reports_both_the_requested_and_the_rendered_frame_count(tmp_path):
+    spec_path, img = make_spec(tmp_path, {"a": {"prompt": "p", "fps": 24, "seconds": 3}})
+    m = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0].manifest()
+    assert m["frames_requested"] == 72
+    assert m["frames"] == 73
+    assert m["seconds_actual"] == round(73 / 24, 3), "the real duration, not the asked-for one"
 
 
 def test_only_selects_one_clip(tmp_path):
@@ -190,10 +209,17 @@ def test_a_relative_source_is_resolved_against_the_root(tmp_path):
 def test_the_manifest_carries_what_a_sidecar_needs(tmp_path):
     spec_path, _ = make_spec(tmp_path)
     m = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0].manifest()
-    for key in ("item", "source", "prompt", "backend", "backend_label",
-                "fps", "seconds", "frames", "size", "seed", "output"):
+    for key in ("item", "source", "prompt", "backend", "backend_label", "fps",
+                "seconds", "seconds_actual", "frames", "frames_requested",
+                "size", "seed", "negative_prompt", "output"):
         assert key in m, f"manifest is missing {key}"
     assert m["output"].endswith(".mp4")
+
+
+def test_the_manifest_records_the_negative_prompt(tmp_path):
+    spec_path, _ = make_spec(tmp_path)
+    m = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0].manifest()
+    assert "blurry" in m["negative_prompt"], "provenance should include how it was steered away"
 
 
 # ----------------------------------------------------------------------- gpu
@@ -236,13 +262,41 @@ def test_render_refuses_before_importing_anything_heavy(tmp_path):
     assert not (tmp_path / "out").exists(), "a refused render must leave nothing behind"
 
 
+def test_tokenizer_requirements_are_reported_when_absent():
+    """Missing these fails *after* loading 27 GB of weights, so warn up front."""
+    blockers = fm.tokenizer_blockers({"tiktoken"})
+    assert any("sentencepiece" in b for b in blockers), blockers
+    assert any("protobuf" in b for b in blockers), blockers
+
+
+def test_tokenizer_requirements_pass_when_present():
+    assert fm.tokenizer_blockers({"sentencepiece", "protobuf", "tiktoken"}) == []
+
+
+def test_check_backend_surfaces_the_tokenizer_gap(tmp_path):
+    spec_path, _ = make_spec(tmp_path)
+    clip = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0]
+    report = {"cuda": True, "torch": "2.11", "diffusers": "0.41", "vram_gb": 16.0}
+    blockers = fm.check_backend(clip, report, available={"tiktoken"})
+    assert any("sentencepiece" in b for b in blockers), blockers
+    assert not any("VRAM" in b for b in blockers), "the device is fine, only the tokenizer is not"
+
+
+def test_a_fully_provisioned_machine_reports_no_blockers(tmp_path):
+    spec_path, _ = make_spec(tmp_path)
+    clip = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0]
+    report = {"cuda": True, "torch": "2.11", "diffusers": "0.41", "vram_gb": 16.0}
+    available = {"sentencepiece", "protobuf", "tiktoken"}
+    assert fm.check_backend(clip, report, available=available) == []
+
+
 # ----------------------------------------------------------------------- cli
 
 def test_plan_reports_the_frames_and_the_cost(tmp_path):
     spec_path, _ = make_spec(tmp_path)
     p = run_cli("--spec", str(spec_path), "plan", cwd=tmp_path)
     assert p.returncode == 0, p.stderr
-    assert "72 frames" in p.stdout
+    assert "73 frames" in p.stdout
     assert "VRAM" in p.stdout, "the cost must be visible before a download"
 
 
@@ -251,7 +305,8 @@ def test_plan_json_is_machine_readable(tmp_path):
     p = run_cli("--spec", str(spec_path), "plan", "--json", cwd=tmp_path)
     assert p.returncode == 0, p.stderr
     data = json.loads(p.stdout)
-    assert data[0]["frames"] == 72
+    assert data[0]["frames"] == 73
+    assert data[0]["frames_requested"] == 72
     assert data[0]["output"] == "ember-s0.mp4"
 
 

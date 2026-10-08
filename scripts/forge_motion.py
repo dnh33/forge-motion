@@ -56,6 +56,19 @@ DEFAULT_BACKEND = "ltx-video-2b"
 
 CLIP_DEFAULTS = {"backend": DEFAULT_BACKEND, "fps": 24, "seconds": 3, "size": [512, 768]}
 
+# LTX's video VAE compresses time by 8, so the pipeline needs num_frames = 8n+1.
+# Anything else fails inside the VAE rather than at the argument.
+FRAME_ALIGN = 8
+NEGATIVE_PROMPT = "worst quality, inconsistent motion, blurry, jittery, distorted"
+
+
+def align_frames(requested: int, step: int = FRAME_ALIGN) -> int:
+    """Round a frame count up to the nearest 8n+1 the video VAE can encode."""
+    if requested <= 1:
+        return 1
+    n = -(-(requested - 1) // step)  # ceil((requested - 1) / step)
+    return n * step + 1
+
 
 class SpecError(Exception):
     """A spec that cannot be rendered as written."""
@@ -71,10 +84,12 @@ class Clip:
     seconds: float
     size: list
     seed: int
+    requested_frames: int = field(init=False)
     frames: int = field(init=False)
 
     def __post_init__(self):
-        self.frames = int(round(self.seconds * self.fps))
+        self.requested_frames = int(round(self.seconds * self.fps))
+        self.frames = align_frames(self.requested_frames)
 
     @property
     def out_name(self) -> str:
@@ -89,9 +104,12 @@ class Clip:
             "backend_label": BACKENDS[self.backend]["label"],
             "fps": self.fps,
             "seconds": self.seconds,
+            "seconds_actual": round(self.frames / self.fps, 3),
+            "frames_requested": self.requested_frames,
             "frames": self.frames,
             "size": self.size,
             "seed": self.seed,
+            "negative_prompt": NEGATIVE_PROMPT,
             "output": f"{self.out_name}.mp4",
         }
 
@@ -194,7 +212,32 @@ def gpu_report() -> dict:
     return report
 
 
-def check_backend(clip: Clip, report: dict) -> list[str]:
+def importable(names) -> set:
+    """Return the subset of `names` that can actually be imported here."""
+    found = set()
+    for name in names:
+        try:
+            __import__(name)
+            found.add(name)
+        except Exception:
+            pass
+    return found
+
+
+def tokenizer_blockers(available) -> list:
+    """The T5 tokenizer needs SentencePiece; the tiktoken fallback cannot read it.
+
+    Missing these does not fail at import. It fails after the whole pipeline has
+    loaded, which on a 27 GB model is minutes of disk I/O thrown away.
+    """
+    need = {"sentencepiece", "protobuf"}
+    return [
+        f"{name} is not installed (the T5 tokenizer needs it)"
+        for name in sorted(need - set(available))
+    ]
+
+
+def check_backend(clip: Clip, report: dict, available=None) -> list:
     """Return the list of things standing between this clip and a render."""
     missing = []
     if report["torch"] is None:
@@ -203,6 +246,10 @@ def check_backend(clip: Clip, report: dict) -> list[str]:
         missing.append("torch is installed but no CUDA device is visible")
     if report["diffusers"] is None:
         missing.append("diffusers is not installed")
+
+    if available is None:
+        available = importable({"sentencepiece", "protobuf", "tiktoken"})
+    missing += tokenizer_blockers(available)
 
     need = BACKENDS[clip.backend]["min_vram_gb"]
     have = report.get("vram_gb")
@@ -217,7 +264,11 @@ def check_backend(clip: Clip, report: dict) -> list[str]:
 # --------------------------------------------------------------------- render
 
 def render(clip: Clip, out_dir: Path, report: dict) -> Path:
-    """Render one clip. Imports the heavy stack here, not at module import."""
+    """Render one clip. Imports the heavy stack here, not at module import.
+
+    Image-to-video is a different pipeline class from text-to-video: LTXPipeline
+    takes a prompt alone, while LTXImageToVideoPipeline takes the frame to animate.
+    """
     blockers = check_backend(clip, report)
     if blockers:
         raise RuntimeError(
@@ -225,20 +276,24 @@ def render(clip: Clip, out_dir: Path, report: dict) -> Path:
             + "\nRun `forge_motion.py check` for the full picture."
         )
 
-    from diffusers import LTXPipeline  # type: ignore  # noqa: PLC0415
     import torch  # noqa: PLC0415
+    from diffusers import LTXImageToVideoPipeline  # type: ignore  # noqa: PLC0415
     from diffusers.utils import export_to_video  # type: ignore  # noqa: PLC0415
     from PIL import Image  # noqa: PLC0415
 
     model_id = BACKENDS[clip.backend]["repo"]
-    pipe = LTXPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
+    pipe = LTXImageToVideoPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
+    # The T5-XXL text encoder alone is about 9 GB in bf16, so tiling the decode is
+    # what keeps a 16 GB card off the swap file.
+    pipe.vae.enable_tiling()
     pipe.to("cuda")
 
     image = Image.open(clip.source).convert("RGB").resize(tuple(clip.size))
     generator = torch.Generator(device="cuda").manual_seed(clip.seed)
     frames = pipe(
-        prompt=clip.prompt,
         image=image,
+        prompt=clip.prompt,
+        negative_prompt=NEGATIVE_PROMPT,
         width=clip.size[0],
         height=clip.size[1],
         num_frames=clip.frames,

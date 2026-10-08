@@ -1,0 +1,25 @@
+# The exact set that produced a clip on an RTX 5060 Ti (compute capability 12.0).
+#
+# Install the CUDA build of torch from PyTorch's OWN index. On Windows the default
+# PyPI wheel is CPU-only, which is how you end up with torch installed and
+# "no CUDA device is visible". The cu128 tag is not optional for Blackwell:
+# sm_120 has no kernels in the cu124 builds.
+#
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+#   python -m pip install -r requirements-gpu.txt
+#
+torch==2.11.0+cu128
+diffusers==0.41.0
+transformers
+accelerate
+imageio[ffmpeg]
+pillow
+safetensors
+
+# The T5 text encoder ships its tokenizer as a SentencePiece model. Without these,
+# transformers falls back to a tiktoken extractor, which cannot parse spiece.model,
+# and the run dies *after* loading 27 GB of weights. Each one was a separate failed
+# attempt before it was added here.
+sentencepiece
+protobuf
+tiktoken
