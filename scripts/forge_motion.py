@@ -54,7 +54,12 @@ BACKENDS = {
 }
 DEFAULT_BACKEND = "ltx-video-2b"
 
-CLIP_DEFAULTS = {"backend": DEFAULT_BACKEND, "fps": 24, "seconds": 3, "size": [512, 768]}
+CLIP_DEFAULTS = {
+    "backend": DEFAULT_BACKEND, "fps": 24, "seconds": 3, "size": [512, 768],
+    # The LTX base model is not step-distilled; its own guidance is ~50 steps.
+    # Step-distilled checkpoints want 4 to 10 and guidance_scale 1.0.
+    "steps": 50,
+}
 
 # LTX's video VAE compresses time by 8, so the pipeline needs num_frames = 8n+1.
 # Anything else fails inside the VAE rather than at the argument.
@@ -84,6 +89,7 @@ class Clip:
     seconds: float
     size: list
     seed: int
+    steps: int
     requested_frames: int = field(init=False)
     frames: int = field(init=False)
 
@@ -109,6 +115,7 @@ class Clip:
             "frames": self.frames,
             "size": self.size,
             "seed": self.seed,
+            "steps": self.steps,
             "negative_prompt": NEGATIVE_PROMPT,
             "output": f"{self.out_name}.mp4",
         }
@@ -172,6 +179,10 @@ def resolve_clips(spec: dict, root: Path | None = None, only: str | None = None)
         if fps < 1 or fps > 60:
             raise SpecError(f"clip {name!r} has fps {fps}; expected 1 to 60")
 
+        steps = int(merged["steps"])
+        if steps < 1 or steps > 200:
+            raise SpecError(f"clip {name!r} has steps {steps}; expected 1 to 200")
+
         seconds = float(merged["seconds"])
         if seconds <= 0:
             raise SpecError(f"clip {name!r} has a non-positive duration")
@@ -184,7 +195,7 @@ def resolve_clips(spec: dict, root: Path | None = None, only: str | None = None)
         clips.append(Clip(
             item=name, source=source, prompt=prompt, backend=backend,
             fps=fps, seconds=seconds, size=[int(v) for v in size],
-            seed=int(merged.get("seed", 0)),
+            seed=int(merged.get("seed", 0)), steps=steps,
         ))
     return clips
 
@@ -297,6 +308,7 @@ def render(clip: Clip, out_dir: Path, report: dict) -> Path:
         width=clip.size[0],
         height=clip.size[1],
         num_frames=clip.frames,
+        num_inference_steps=clip.steps,
         generator=generator,
     ).frames[0]
 
@@ -322,7 +334,7 @@ def _plan(args) -> int:
     for c in clips:
         b = BACKENDS[c.backend]
         print(f"  {c.item}: {c.frames} frames at {c.fps} fps ({c.seconds}s), "
-              f"{c.size[0]}x{c.size[1]}, seed {c.seed}")
+              f"{c.size[0]}x{c.size[1]}, seed {c.seed}, {c.steps} steps")
         print(f"      backend {b['label']} (~{b['approx_download_gb']} GB, "
               f">= {b['min_vram_gb']} GB VRAM)")
         print(f"      from {c.source.name}: {c.prompt}")

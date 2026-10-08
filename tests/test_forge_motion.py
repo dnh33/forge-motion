@@ -126,6 +126,34 @@ def test_a_clip_reports_both_the_requested_and_the_rendered_frame_count(tmp_path
     assert m["seconds_actual"] == round(73 / 24, 3), "the real duration, not the asked-for one"
 
 
+def test_steps_default_to_the_base_model_guidance(tmp_path):
+    spec_path, img = make_spec(tmp_path)
+    clips = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)
+    assert clips[0].steps == 50
+
+
+def test_steps_are_settable_per_clip(tmp_path):
+    spec_path, img = make_spec(tmp_path, {"a": {"prompt": "p", "steps": 8}})
+    clips = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)
+    assert clips[0].steps == 8
+
+
+def test_an_absurd_step_count_is_rejected(tmp_path):
+    spec_path, img = make_spec(tmp_path, {"a": {"prompt": "p", "steps": 5000}})
+    try:
+        fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)
+    except fm.SpecError as e:
+        assert "steps" in str(e)
+    else:
+        raise AssertionError("expected SpecError")
+
+
+def test_the_manifest_records_the_step_count(tmp_path):
+    spec_path, _ = make_spec(tmp_path, {"a": {"prompt": "p", "steps": 12}})
+    m = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0].manifest()
+    assert m["steps"] == 12, "a sidecar should say how many steps made the clip"
+
+
 def test_only_selects_one_clip(tmp_path):
     spec_path, img = make_spec(tmp_path, {
         "a": {"prompt": "one"},
@@ -211,7 +239,7 @@ def test_the_manifest_carries_what_a_sidecar_needs(tmp_path):
     m = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0].manifest()
     for key in ("item", "source", "prompt", "backend", "backend_label", "fps",
                 "seconds", "seconds_actual", "frames", "frames_requested",
-                "size", "seed", "negative_prompt", "output"):
+                "size", "seed", "steps", "negative_prompt", "output"):
         assert key in m, f"manifest is missing {key}"
     assert m["output"].endswith(".mp4")
 
