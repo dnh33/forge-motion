@@ -65,6 +65,7 @@ BACKENDS = {
         "approx_download_gb": 23.6,
         "min_vram_gb": 8,
         "cpu": True,
+        "t2v": True,  # `from` is optional: no still means text-to-video
         # Guidance- and timestep-distilled: this schedule, guidance 1.0, no CFG.
         "timesteps": [1000, 993, 987, 981, 975, 909, 725, 0.03],
         "note": "8 fixed steps, one forward pass each; the only backend that runs on a CPU",
@@ -100,7 +101,7 @@ class SpecError(Exception):
 @dataclass
 class Clip:
     item: str
-    source: Path
+    source: Path | None  # None: text-to-video
     prompt: str
     backend: str
     fps: int
@@ -128,7 +129,8 @@ class Clip:
         return {
             **schedule,
             "item": self.item,
-            "source": str(self.source),
+            "mode": "image-to-video" if self.source else "text-to-video",
+            "source": str(self.source) if self.source else None,
             "prompt": self.prompt,
             "backend": self.backend,
             "backend_label": BACKENDS[self.backend]["label"],
@@ -169,10 +171,24 @@ def resolve_clips(spec: dict, root: Path | None = None, only: str | None = None)
             raise SpecError(f"no clip named {only!r} in the spec (have: {sorted(items)})")
         items = {only: items[only]}
 
+    # A film spec writes its language once: `defaults` for every shot, `cast` for
+    # character sheets that a prompt names as {cat}, and a `style` bible appended to
+    # every prompt. Repeating the exact words is what holds a character across cuts.
+    shared = spec.get("defaults", {})
+    cast = spec.get("cast", {})
+    style = (spec.get("style") or "").strip()
+
     clips = []
     for name, raw in items.items():
         if not isinstance(raw, dict):
             raise SpecError(f"clip {name!r} must be an object")
+        raw = {**shared, **raw}
+        if raw.get("prompt"):
+            try:
+                text = raw["prompt"].format(**cast)
+            except KeyError as e:
+                raise SpecError(f"clip {name!r} names {e.args[0]!r}, which is not in the cast") from e
+            raw["prompt"] = f"{text} {style}".strip()
         backend_raw = raw.get("backend", CLIP_DEFAULTS["backend"])
         fixed = BACKENDS.get(backend_raw, {}).get("timesteps")
         if fixed is not None and "steps" in raw and int(raw["steps"]) != len(fixed):
@@ -194,13 +210,15 @@ def resolve_clips(spec: dict, root: Path | None = None, only: str | None = None)
             )
 
         source_raw = merged.get("from")
-        if not source_raw:
-            raise SpecError(f"clip {name!r} has no 'from' image; motion is image-driven")
-        source = Path(source_raw)
-        if not source.is_absolute():
-            source = (root / source).resolve()
-        if not source.is_file():
-            raise SpecError(f"clip {name!r} points at a missing image: {source}")
+        source = None
+        if not source_raw and not BACKENDS[backend].get("t2v"):
+            raise SpecError(f"clip {name!r} has no 'from' image; {backend} is image-to-video only")
+        if source_raw:
+            source = Path(source_raw)
+            if not source.is_absolute():
+                source = (root / source).resolve()
+            if not source.is_file():
+                raise SpecError(f"clip {name!r} points at a missing image: {source}")
 
         size = merged["size"]
         if not (isinstance(size, list) and len(size) == 2 and all(int(v) > 0 for v in size)):
@@ -452,20 +470,35 @@ def render_distilled(clip: Clip, out_dir: Path, device: str, dtype_name: str) ->
         print(f"[step {i + 1}/{clip.steps}] {steps[-1]}s, peak rss {peak_rss_gb()} GB", flush=True)
         return kwargs
 
-    image = Image.open(clip.source).convert("RGB").resize(tuple(clip.size))
+    image = Image.open(clip.source).convert("RGB").resize(tuple(clip.size)) if clip.source else None
+    generator = torch.Generator(device=device).manual_seed(clip.seed)
     t = last[0] = time.perf_counter()
     with torch.no_grad():
-        frames = pipe(
+        latents = pipe(
             image=image, prompt_embeds=embeds, prompt_attention_mask=mask,
             width=clip.size[0], height=clip.size[1], num_frames=clip.frames,
             frame_rate=clip.fps, timesteps=backend["timesteps"], guidance_scale=1.0,
-            image_cond_noise_scale=0.025, decode_timestep=0.05, decode_noise_scale=0.025,
-            generator=torch.Generator(device=device).manual_seed(clip.seed),
-            callback_on_step_end=on_step,
-        ).frames[0]
+            image_cond_noise_scale=0.025, generator=generator,
+            callback_on_step_end=on_step, output_type="latent",
+        ).frames
     metrics["step_s"] = steps
-    metrics["denoise_s"] = round(last[0] - t, 1)
-    t = mark("decode", last[0])
+    t = mark("denoise", t)
+
+    # 4. Decode with the transformer gone. Held through the decode, its 7.7 GB of
+    # fp32 weights pushed a 384x512x241 run 5.8 GB into swap. The steps below are
+    # the pipeline's own decode (diffusers 0.41, LTXConditionPipeline.__call__).
+    pipe.transformer = None
+    del transformer
+    gc.collect()
+    with torch.no_grad():
+        latents = pipe._denormalize_latents(
+            latents, vae.latents_mean, vae.latents_std, vae.config.scaling_factor).to(dtype)
+        noise = torch.randn(latents.shape, generator=generator, device=device, dtype=dtype)
+        latents = (1 - 0.025) * latents + 0.025 * noise  # decode_noise_scale
+        timestep = torch.tensor([0.05], device=device, dtype=dtype)  # decode_timestep
+        video = vae.decode(latents, timestep, return_dict=False)[0]
+        frames = pipe.video_processor.postprocess_video(video, output_type="pil")[0]
+    t = mark("decode", t)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{clip.out_name}.mp4"
@@ -496,7 +529,8 @@ def _plan(args) -> int:
               f"{c.size[0]}x{c.size[1]}, seed {c.seed}, {c.steps} steps")
         print(f"      backend {b['label']} (~{b['approx_download_gb']} GB, "
               f">= {b['min_vram_gb']} GB VRAM)")
-        print(f"      from {c.source.name}: {c.prompt}")
+        origin = f"from {c.source.name}" if c.source else "text-to-video"
+        print(f"      {origin}: {c.prompt}")
     return 0
 
 

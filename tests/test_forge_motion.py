@@ -402,6 +402,78 @@ def test_a_cpu_render_refuses_before_importing_anything_heavy(tmp_path):
     assert not (tmp_path / "out").exists()
 
 
+def test_the_distilled_backend_renders_from_text_alone(tmp_path):
+    spec = {"clips": {"t": {"prompt": "a dragon over a valley", "backend": DISTILLED}}}
+    clip = fm.resolve_clips(spec, root=tmp_path)[0]
+    assert clip.source is None
+    m = clip.manifest()
+    assert m["mode"] == "text-to-video" and m["source"] is None
+
+
+def test_an_image_only_backend_still_needs_a_from(tmp_path):
+    spec = {"clips": {"t": {"prompt": "p"}}}
+    try:
+        fm.resolve_clips(spec, root=tmp_path)
+    except fm.SpecError as e:
+        assert "from" in str(e)
+    else:
+        raise AssertionError("expected SpecError")
+
+
+def test_plan_prints_a_text_clip(tmp_path):
+    path = tmp_path / "motion.json"
+    path.write_text(json.dumps({"clips": {"t": {"prompt": "rain", "backend": DISTILLED}}}))
+    p = run_cli("--spec", str(path), "plan", cwd=tmp_path)
+    assert p.returncode == 0, p.stderr
+    assert "text-to-video" in p.stdout
+
+
+FILM_SPEC = {
+    "defaults": {"backend": DISTILLED, "size": [960, 416]},
+    "cast": {"cat": "an orange tabby cat in a white astronaut suit"},
+    "style": "35mm film, anamorphic.",
+    "clips": {"s1": {"prompt": "{cat} wakes up.", "seconds": 4}},
+}
+
+
+def test_defaults_apply_to_every_shot(tmp_path):
+    clip = fm.resolve_clips(FILM_SPEC, root=tmp_path)[0]
+    assert clip.backend == DISTILLED and clip.size == [960, 416]
+
+
+def test_cast_names_expand_word_for_word(tmp_path):
+    """Consistency across cuts comes from repeating the exact same description."""
+    clip = fm.resolve_clips(FILM_SPEC, root=tmp_path)[0]
+    assert clip.prompt.startswith("an orange tabby cat in a white astronaut suit wakes up.")
+
+
+def test_the_style_bible_ends_every_prompt(tmp_path):
+    clip = fm.resolve_clips(FILM_SPEC, root=tmp_path)[0]
+    assert clip.prompt.endswith("35mm film, anamorphic.")
+
+
+def test_an_unknown_cast_name_is_a_spec_error(tmp_path):
+    spec = {**FILM_SPEC, "clips": {"s1": {"prompt": "{dog} barks."}}}
+    try:
+        fm.resolve_clips(spec, root=tmp_path)
+    except fm.SpecError as e:
+        assert "dog" in str(e)
+    else:
+        raise AssertionError("expected SpecError")
+
+
+def test_the_committed_film_resolves():
+    spec = fm.load_spec(REPO / "prompts" / "films" / "one-small-step.json")
+    shots = fm.resolve_clips(spec, root=REPO)
+    assert len(shots) >= 10
+    assert spec["film"]["title"]
+    for s in shots:
+        assert s.source is None and s.backend == DISTILLED
+        assert all(v % 32 == 0 for v in s.size)
+        assert "{" not in s.prompt, f"{s.item} has an unexpanded name"
+    assert 55 <= sum(s.frames / s.fps for s in shots) <= 100, "a short film, not a clip"
+
+
 def test_the_committed_spec_carries_the_runner_clips():
     clips = {c.item: c for c in fm.resolve_clips(fm.load_spec(REPO / fm.DEFAULT_SPEC), root=REPO)}
     smoke, full = clips["forgemaster-smoke"], clips["forgemaster-10s"]

@@ -1,46 +1,89 @@
-name: Render on a CPU runner
-# Image-to-video on a free GitHub-hosted runner: 4 vCPU, 16 GB RAM, no GPU.
+name: Render on CPU runners
+# Image- or text-to-video on free GitHub-hosted runners: 4 vCPU, 16 GB RAM, no GPU.
 # LTX-Video 2B 0.9.8 distilled is the only backend with a CPU path (8 fixed steps,
-# no CFG). ARCHITECTURE.md said this would not fit; this workflow is the measurement.
-# Every phase is timed into <clip>.json, and memory is sampled into <clip>.mem.log,
-# so a run that dies still says where.
+# no CFG). One runner per clip, in parallel; a spec with a `film` block is then cut
+# into one film by scripts/assemble.py. Every clip's phases are timed into
+# <clip>.json and its memory sampled into <item>.mem.log, so a run that dies still
+# says where.
 on:
   workflow_dispatch:
     inputs:
-      item:
-        description: "Clip id in prompts/motion.json"
-        default: "forgemaster-smoke"
-        type: choice
-        options: [forgemaster-smoke, forgemaster-10s]
+      spec:
+        description: "Spec file"
+        default: "prompts/films/one-small-step.json"
+        type: string
+      items:
+        description: "Comma-separated clip ids, or 'all'"
+        default: "all"
+        type: string
       dtype:
         description: "Weights and activations on the CPU"
         default: "float32"
         type: choice
         options: [float32, bfloat16]
       publish:
-        description: "Commit the clip to the renders branch"
+        description: "Commit clips (and the film) to the renders branch"
         default: true
         type: boolean
 permissions:
   contents: write
-concurrency: {group: render, cancel-in-progress: false}
+concurrency: {group: "render-${{ inputs.spec }}", cancel-in-progress: false}
 env:
   HF_HOME: /home/runner/hf
   HF_HUB_DISABLE_PROGRESS_BARS: "1"
   PYTHONUNBUFFERED: "1"
+  SPEC: ${{ inputs.spec }}
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.p.outputs.matrix }}
+      name: ${{ steps.p.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        env:
+          ITEMS: ${{ inputs.items }}
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 scripts/forge_motion.py --spec "$SPEC" plan
+          python3 - <<'EOF'
+          import json, os, subprocess
+          spec = os.environ["SPEC"]
+          clips = json.loads(subprocess.check_output(
+              ["python3", "scripts/forge_motion.py", "--spec", spec, "plan", "--json"]))
+          want = os.environ["ITEMS"].strip()
+          names = [c["item"] for c in clips]
+          if want != "all":
+              picked = [s.strip() for s in want.split(",") if s.strip()]
+              unknown = sorted(set(picked) - set(names))
+              if unknown:
+                  raise SystemExit(f"unknown clip ids: {unknown} (have: {names})")
+              names = [n for n in names if n in picked]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"matrix={json.dumps({'item': names})}\n")
+              out.write(f"name={os.path.splitext(os.path.basename(spec))[0]}\n")
+          print(f"{len(names)} clip(s):", ", ".join(names))
+          EOF
+
   render:
+    needs: plan
+    name: ${{ matrix.item }}
     runs-on: ubuntu-latest
     timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: Free disk, add swap
         # 23.6 GB of weights. The swap is an OOM guard for load-time spikes, not a
-        # plan: if the sampler shows it in steady use, the run is mis-sized.
+        # plan: if the sampler shows it in steady use, the clip is mis-sized.
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo fallocate -l 8G /swap2 && sudo chmod 600 /swap2 && sudo mkswap /swap2 && sudo swapon /swap2
-          df -h / ; free -g ; nproc ; lscpu | grep -E 'Model name|Flags' | cut -c1-200
+          df -h / ; free -g ; nproc ; lscpu | grep 'Model name'
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -50,38 +93,61 @@ jobs:
           python -m pip install --quiet diffusers==0.41.0 transformers accelerate "imageio[ffmpeg]" \
             pillow safetensors sentencepiece protobuf huggingface_hub
           python -m pip freeze | grep -iE '^(torch|diffusers|transformers|accelerate|huggingface)'
-      - name: Check
-        run: python scripts/forge_motion.py check --device cpu || true
       - name: Render
         env:
-          ITEM: ${{ inputs.item }}
+          ITEM: ${{ matrix.item }}
           DTYPE: ${{ inputs.dtype }}
         run: |
           mkdir -p out
           ( while true; do echo "$(date +%T) $(free -m | awk '/Mem/{print "used",$3,"avail",$7} /Swap/{print "swap",$3}' | tr '\n' ' ')"; sleep 30; done ) > "out/$ITEM.mem.log" &
           MON=$!
-          python scripts/forge_motion.py render --item "$ITEM" --device cpu --dtype "$DTYPE" --out out 2>&1 | tee "out/$ITEM.log"
+          python scripts/forge_motion.py --spec "$SPEC" render --item "$ITEM" --device cpu --dtype "$DTYPE" --out out 2>&1 | tee "out/$ITEM.log"
           rc=${PIPESTATUS[0]}
           kill "$MON" || true
           exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: motion-${{ inputs.item }}-${{ github.run_id }}
+          name: clip-${{ matrix.item }}
           path: out/
           if-no-files-found: warn
           retention-days: 30
+
+  publish:
+    needs: [plan, render]
+    # Publish whatever rendered, even if a clip failed: the film step below refuses
+    # a film with a missing shot, but the shots that did render are kept.
+    if: always() && inputs.publish && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      NAME: ${{ needs.plan.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/download-artifact@v4
+        with: {pattern: "clip-*", path: dl, merge-multiple: true}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cut the film
+        id: film
+        continue-on-error: true
+        run: |
+          python -m pip install --quiet pillow "imageio[ffmpeg]"
+          if python -c "import json,sys; sys.exit(0 if 'film' in json.load(open('$SPEC')) else 1)"; then
+            python scripts/assemble.py --spec "$SPEC" --shots dl --out "film/$NAME.mp4"
+          else
+            echo "no film block in $SPEC; publishing clips only"
+          fi
       - name: Commit to the renders branch
-        if: success() && inputs.publish
-        env:
-          ITEM: ${{ inputs.item }}
         run: |
           set -e
-          cp -r out /tmp/out
+          cp -r dl /tmp/dl; [ -d film ] && cp -r film /tmp/film || true
           git config user.name "render-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin renders || true
           if git ls-remote --exit-code --heads origin renders >/dev/null; then git checkout renders; else git checkout --orphan renders; git rm -rf --quiet . || true; fi
-          mkdir -p "renders/$ITEM" && cp /tmp/out/* "renders/$ITEM/"
+          mkdir -p "renders/$NAME/shots"
+          cp /tmp/dl/* "renders/$NAME/shots/" 2>/dev/null || true
+          [ -d /tmp/film ] && cp /tmp/film/* "renders/$NAME/" || true
           git add renders
-          (git commit -m "$ITEM from run ${{ github.run_id }}" && git push origin renders) || echo "Nothing new"
+          (git commit -m "$NAME from run ${{ github.run_id }}" && git push origin renders) || echo "Nothing new"
