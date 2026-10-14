@@ -2,11 +2,12 @@
 
 > ## Status: the runner path is the default. The local GPU path is EXPERIMENTAL.
 >
-> **Clips render on GitHub's free CPU runners** with
-> [`render.yml`](.github/workflows/render.yml): Actions, "Render on a CPU runner",
-> pick a clip. It costs nothing, needs nothing installed, and cannot affect the
-> machine you are sitting at. Measured: a **10 second, 384x512 clip in 32 minutes**
-> (numbers below).
+> **Clips and short films render on GitHub's free CPU runners**: picture with
+> [`render.yml`](.github/workflows/render.yml), sound with
+> [`audio.yml`](.github/workflows/audio.yml). It costs nothing, needs nothing
+> installed, and cannot affect the machine you are sitting at. Measured: a **10
+> second, 384x512 clip in 32 minutes**, and a **76 second, 12-shot film with
+> generated sound in about 100 minutes** of wall clock (numbers below).
 >
 > The local GPU path works too, but its run **saturated the VRAM that the display
 > also needs and froze the owner's PC**. It is kept as a record and for
@@ -21,6 +22,35 @@ and what an earlier version of this README got wrong, is in
 
 The consult point between the two halves is a file: a PNG on the images repo is a
 valid `from` in a motion spec.
+
+## Short films, written in words
+
+A film is a spec ([`prompts/films/one-small-step.json`](prompts/films/one-small-step.json)):
+
+- `style`: one style bible, appended to every shot's prompt.
+- `cast`: character sheets a prompt names as `{cat}`, expanded word for word in every
+  shot. Repetition is the only thing holding a character across cuts; it held the hero
+  in 10 of 11 shots.
+- per shot: what happens and where the camera is (`prompt`), what it sounds like
+  (`sound`), its length and seed.
+- `film.score`: a brief for the music (caption, bpm, key, seed).
+
+| step | workflow | what runs | measured (one runner each, in parallel) |
+|---|---|---|---|
+| shots | `render.yml` | LTX-Video 2B distilled, text-to-video, 960x416 | 28 to 54 min per 4 to 8 s shot |
+| cut | `render.yml` publish | `scripts/assemble.py`: title card, hard cuts, fades, end card | seconds |
+| effects | `audio.yml` | [MMAudio](https://github.com/hkchengrex/MMAudio) large 44k v2, video-to-audio, per shot | 6 to 15 min per shot |
+| score | `audio.yml` | [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) turbo, DiT only, text-to-music | 6.5 min for 80 s |
+| mix | `audio.yml` | `scripts/mix.py`: measured static gains, score ducked under effects, -14 LUFS | seconds |
+
+Everything lands on the `renders` branch under `renders/<film>/`: the shots, the
+silent cut, `sound/` (every effect and the score, each with a JSON of its timings),
+and `<film>-sound.mp4`. `audio.yml` with `remix` re-mixes that sound without
+generating anything.
+
+**Licences:** MMAudio's weights are CC-BY-NC 4.0, so a film with its effects is for
+non-commercial use. LTX-Video's weights carry their own open-weights licence. ACE-Step
+is MIT.
 
 ## Read this before running it
 
