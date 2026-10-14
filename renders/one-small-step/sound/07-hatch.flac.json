@@ -1,0 +1,18 @@
+{
+  "video": "shot.mp4",
+  "prompt": "a heavy metal hatch hissing open, air rushing out, then a deep quiet rumble",
+  "negative": "music, singing, speech, talking, melody",
+  "seed": 42,
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "variant": "large_44k_v2",
+    "steps": 25,
+    "load_s": 113.3,
+    "generate_s": 651.4,
+    "total_s": 764.8,
+    "peak_rss_gb": 12.84,
+    "seconds": 8.0,
+    "sampling_rate": 44100
+  }
+}

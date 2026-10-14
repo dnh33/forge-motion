@@ -1,0 +1,18 @@
+{
+  "video": "shot.mp4",
+  "prompt": "quick high electronic chirps, soft whirring, small beeps",
+  "negative": "music, singing, speech, talking, melody",
+  "seed": 42,
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "variant": "large_44k_v2",
+    "steps": 25,
+    "load_s": 123.4,
+    "generate_s": 325.1,
+    "total_s": 448.5,
+    "peak_rss_gb": 12.31,
+    "seconds": 4.0,
+    "sampling_rate": 44100
+  }
+}
