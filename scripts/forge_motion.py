@@ -254,12 +254,16 @@ def gpu_report() -> dict:
     return report
 
 
+# Package name -> the module it installs, where the two differ.
+IMPORT_NAMES = {"protobuf": "google.protobuf"}
+
+
 def importable(names) -> set:
-    """Return the subset of `names` that can actually be imported here."""
+    """Return the subset of package `names` that can actually be imported here."""
     found = set()
     for name in names:
         try:
-            __import__(name)
+            __import__(IMPORT_NAMES.get(name, name))
             found.add(name)
         except Exception:
             pass

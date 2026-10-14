@@ -301,6 +301,24 @@ def test_tokenizer_requirements_pass_when_present():
     assert fm.tokenizer_blockers({"sentencepiece", "protobuf", "tiktoken"}) == []
 
 
+def test_protobuf_is_found_under_its_import_name(monkeypatch):
+    """The package is `protobuf`, the module is `google.protobuf`: asking for the
+    package name refused a runner that had it installed."""
+    import builtins
+    seen = []
+    real = builtins.__import__
+
+    def fake(name, *a, **k):
+        seen.append(name)
+        if name == "google.protobuf":
+            return object()
+        return real(name, *a, **k)
+
+    monkeypatch.setattr("builtins.__import__", fake)
+    assert "protobuf" in fm.importable({"protobuf"})
+    assert "google.protobuf" in seen
+
+
 def test_check_backend_surfaces_the_tokenizer_gap(tmp_path):
     spec_path, _ = make_spec(tmp_path)
     clip = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0]
