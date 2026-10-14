@@ -1,6 +1,6 @@
 {
   "name": "Motion studies",
-  "notes": "One clip per item. 'from' is the still the motion starts from; forge-images publishes these under renders/<set>/. The committed seed.png is a placeholder so `plan` works out of the box. The forgemaster clips run on GitHub's CPU runners (render.yml): the still is forge-images renders/portraits/portraits-forgemaster-s1103.png, at 288x384 (3:4, on the 32 grid).",
+  "notes": "One clip per item. 'from' is the still the motion starts from; forge-images publishes these under renders/<set>/. The committed seed.png is a placeholder so `plan` works out of the box. The forgemaster clips run on GitHub's CPU runners (render.yml): the still is forge-images renders/portraits/portraits-forgemaster-s1103.png, 3:4 on the 32 grid: the smoke at 288x384 (14 s/step measured), the 10 s clip at 384x512.",
   "clips": {
     "seed-drift": {
       "from": "prompts/seed.png",
@@ -32,8 +32,8 @@
       "backend": "ltx-video-2b-distilled",
       "fps": 24,
       "size": [
-        288,
-        384
+        384,
+        512
       ],
       "seed": 1103,
       "seconds": 10
