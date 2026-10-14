@@ -1,0 +1,16 @@
+{
+  "caption": "Cinematic orchestral film score for a short space comedy. Opens with soft ethereal strings, celesta and wordless choir full of wonder, turns playful with pizzicato strings and light percussion for a chase, grows tense with low brass and ticking percussion, then swells into a triumphant full orchestra with brass and choir for a sunrise ending. Instrumental film soundtrack.",
+  "bpm": 96,
+  "key": "D minor",
+  "seed": 1969,
+  "duration": 30.0,
+  "metrics": {
+    "device": "cpu",
+    "steps": 8,
+    "model": "acestep-v15-turbo (DiT only)",
+    "load_s": 61.7,
+    "generate_s": 91.3,
+    "total_s": 153.0,
+    "peak_rss_gb": 13.73
+  }
+}
