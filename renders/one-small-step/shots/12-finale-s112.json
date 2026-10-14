@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "12-finale",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "Two tiny astronaut figures, an orange tabby cat and a small grey mouse, float side by side as small silhouettes against a brilliant sunrise over the curved Earth. The camera pulls back slowly and steadily to reveal the whole white space station turning beside them, with its long solar panels catching the golden light. Stars across the deep black sky. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 8.0,
+  "seconds_actual": 8.042,
+  "frames_requested": 192,
+  "frames": 193,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 112,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "12-finale-s112.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 238.4,
+    "rss_after_encode_gb": 14.65,
+    "load_s": 29.6,
+    "rss_after_load_gb": 14.65,
+    "step_s": [
+      354.8,
+      357.1,
+      354.5,
+      354.5,
+      356.8,
+      354.7,
+      355.2,
+      355.9
+    ],
+    "denoise_s": 2843.4,
+    "rss_after_denoise_gb": 14.65,
+    "decode_s": 622.2,
+    "rss_after_decode_gb": 14.65,
+    "total_s": 3735.5,
+    "peak_rss_gb": 14.65
+  }
+}

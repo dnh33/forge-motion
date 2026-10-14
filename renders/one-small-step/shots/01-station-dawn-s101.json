@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "01-station-dawn",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "A large white space station drifts slowly above the Earth as the sun rises over the curved blue horizon. A golden band of sunlight sweeps across its long solar panels and white modules, and thin clouds glow far below over the dark ocean. The camera glides slowly alongside the station in a wide, steady tracking shot, with stars fading into the deep black sky. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 6.0,
+  "seconds_actual": 6.042,
+  "frames_requested": 144,
+  "frames": 145,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 101,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "01-station-dawn-s101.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 247.0,
+    "rss_after_encode_gb": 14.72,
+    "load_s": 33.1,
+    "rss_after_load_gb": 14.72,
+    "step_s": [
+      244.2,
+      244.1,
+      243.5,
+      243.3,
+      243.1,
+      244.6,
+      243.7,
+      243.4
+    ],
+    "denoise_s": 1950.0,
+    "rss_after_denoise_gb": 14.72,
+    "decode_s": 466.3,
+    "rss_after_decode_gb": 14.72,
+    "total_s": 2697.8,
+    "peak_rss_gb": 14.72
+  }
+}

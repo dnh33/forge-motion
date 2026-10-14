@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "06-cupola",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "a fluffy orange tabby cat wearing a small white astronaut suit with an orange shoulder patch and a clear round glass helmet tumbles slowly head over heels into a round observation dome with seven large windows, and stops with its paws pressed against the glass. Far below the window, the blue Earth turns slowly with white swirls of cloud. The camera is behind the cat, looking past it out of the window. Bright sunlight spills in through the glass. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 6.0,
+  "seconds_actual": 6.042,
+  "frames_requested": 144,
+  "frames": 145,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 106,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "06-cupola-s106.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 222.2,
+    "rss_after_encode_gb": 14.69,
+    "load_s": 33.0,
+    "rss_after_load_gb": 14.69,
+    "step_s": [
+      265.4,
+      265.3,
+      268.7,
+      270.4,
+      268.3,
+      269.4,
+      268.9,
+      269.5
+    ],
+    "denoise_s": 2145.9,
+    "rss_after_denoise_gb": 14.69,
+    "decode_s": 489.5,
+    "rss_after_decode_gb": 14.69,
+    "total_s": 2892.1,
+    "peak_rss_gb": 14.69
+  }
+}

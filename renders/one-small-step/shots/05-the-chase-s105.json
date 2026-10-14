@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "05-the-chase",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "a fluffy orange tabby cat wearing a small white astronaut suit with an orange shoulder patch and a clear round glass helmet pushes off a white wall and glides fast through a long cylindrical space station module, front paws stretched forward, chasing a red laser dot ahead of it. Loose cables, a floating pen and a drifting sandwich spin past. The camera tracks alongside the cat at the same speed in a smooth side-on shot. Bright white interior light. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 6.0,
+  "seconds_actual": 6.042,
+  "frames_requested": 144,
+  "frames": 145,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 105,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "05-the-chase-s105.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 193.4,
+    "rss_after_encode_gb": 14.63,
+    "load_s": 43.5,
+    "rss_after_load_gb": 14.63,
+    "step_s": [
+      212.2,
+      212.9,
+      214.6,
+      214.5,
+      217.7,
+      217.0,
+      219.1,
+      219.0
+    ],
+    "denoise_s": 1727.0,
+    "rss_after_denoise_gb": 14.63,
+    "decode_s": 365.0,
+    "rss_after_decode_gb": 14.63,
+    "total_s": 2330.1,
+    "peak_rss_gb": 14.63
+  }
+}

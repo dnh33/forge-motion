@@ -1,0 +1,19 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[encode] 247.0s, peak rss 14.72 GB
+/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+There are modules in LTXVideoTransformer3DModel that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+There are modules in AutoencoderKLLTXVideo that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+[load] 33.1s, peak rss 14.72 GB
+  0%|          | 0/8 [00:00<?, ?it/s][step 1/8] 244.2s, peak rss 14.72 GB
+ 12%|█▎        | 1/8 [04:04<28:28, 244.13s/it][step 2/8] 244.1s, peak rss 14.72 GB
+ 25%|██▌       | 2/8 [08:08<24:24, 244.12s/it][step 3/8] 243.5s, peak rss 14.72 GB
+ 38%|███▊      | 3/8 [12:11<20:19, 243.85s/it][step 4/8] 243.3s, peak rss 14.72 GB
+ 50%|█████     | 4/8 [16:15<16:14, 243.65s/it][step 5/8] 243.1s, peak rss 14.72 GB
+ 62%|██████▎   | 5/8 [20:18<12:10, 243.45s/it][step 6/8] 244.6s, peak rss 14.72 GB
+ 75%|███████▌  | 6/8 [24:22<08:07, 243.85s/it][step 7/8] 243.7s, peak rss 14.72 GB
+ 88%|████████▊ | 7/8 [28:26<04:03, 243.80s/it][step 8/8] 243.4s, peak rss 14.72 GB
+100%|██████████| 8/8 [32:29<00:00, 243.67s/it]100%|██████████| 8/8 [32:29<00:00, 243.74s/it]
+[denoise] 1950.0s, peak rss 14.72 GB
+[decode] 466.3s, peak rss 14.72 GB
+wrote out/01-station-dawn-s101.mp4

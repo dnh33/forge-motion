@@ -1,0 +1,20 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (155 > 128). Running this sequence through the model will result in indexing errors
+[encode] 553.1s, peak rss 14.51 GB
+/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+There are modules in LTXVideoTransformer3DModel that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+There are modules in AutoencoderKLLTXVideo that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+[load] 90.0s, peak rss 14.55 GB
+  0%|          | 0/8 [00:00<?, ?it/s][step 1/8] 212.9s, peak rss 14.55 GB
+ 12%|█▎        | 1/8 [03:32<24:49, 212.83s/it][step 2/8] 211.9s, peak rss 14.55 GB
+ 25%|██▌       | 2/8 [07:04<21:13, 212.31s/it][step 3/8] 214.5s, peak rss 14.55 GB
+ 38%|███▊      | 3/8 [10:39<17:46, 213.30s/it][step 4/8] 215.0s, peak rss 14.55 GB
+ 50%|█████     | 4/8 [14:14<14:15, 213.96s/it][step 5/8] 216.1s, peak rss 14.55 GB
+ 62%|██████▎   | 5/8 [17:50<10:44, 214.72s/it][step 6/8] 213.7s, peak rss 14.55 GB
+ 75%|███████▌  | 6/8 [21:23<07:08, 214.36s/it][step 7/8] 213.8s, peak rss 14.55 GB
+ 88%|████████▊ | 7/8 [24:57<03:34, 214.18s/it][step 8/8] 213.5s, peak rss 14.55 GB
+100%|██████████| 8/8 [28:31<00:00, 213.96s/it]100%|██████████| 8/8 [28:31<00:00, 213.91s/it]
+[denoise] 1711.3s, peak rss 14.55 GB
+[decode] 364.8s, peak rss 14.55 GB
+wrote out/02-asleep-s102.mp4

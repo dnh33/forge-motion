@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "09-the-mouse",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "a tiny grey mouse wearing a tiny silver astronaut suit and a clear round glass helmet sits on the rim of a white satellite dish on the outside of a space station, holding a small silver laser pointer in both front paws and shining a thin red beam toward the camera. Its whiskers twitch and it grins. The camera slowly pushes in to a close-up of the mouse. The blue Earth glows softly far behind it. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 5.0,
+  "seconds_actual": 5.042,
+  "frames_requested": 120,
+  "frames": 121,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 109,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "09-the-mouse-s109.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 238.5,
+    "rss_after_encode_gb": 14.62,
+    "load_s": 31.5,
+    "rss_after_load_gb": 14.62,
+    "step_s": [
+      188.5,
+      188.7,
+      189.1,
+      188.9,
+      188.4,
+      189.9,
+      190.5,
+      191.2
+    ],
+    "denoise_s": 1515.1,
+    "rss_after_denoise_gb": 14.62,
+    "decode_s": 386.8,
+    "rss_after_decode_gb": 14.62,
+    "total_s": 2173.0,
+    "peak_rss_gb": 14.62
+  }
+}

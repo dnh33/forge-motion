@@ -1,0 +1,58 @@
+{
+  "timesteps": [
+    1000,
+    993,
+    987,
+    981,
+    975,
+    909,
+    725,
+    0.03
+  ],
+  "guidance_scale": 1.0,
+  "item": "03-eyes-open",
+  "mode": "text-to-video",
+  "source": null,
+  "prompt": "Extreme close-up of a fluffy orange tabby cat wearing a small white astronaut suit with an orange shoulder patch and a clear round glass helmet. Its eyes snap open behind the glass helmet, the pupils widen into large black circles, and its ears twitch forward. A tiny red reflection appears in the glass of the helmet. The camera is still, framed tightly on the face. Dim interior light with a red glow from off screen. Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
+  "backend": "ltx-video-2b-distilled",
+  "backend_label": "LTX-Video 2B 0.9.8 distilled",
+  "fps": 24,
+  "seconds": 4.0,
+  "seconds_actual": 4.042,
+  "frames_requested": 96,
+  "frames": 97,
+  "size": [
+    960,
+    416
+  ],
+  "seed": 103,
+  "steps": 8,
+  "negative_prompt": "worst quality, inconsistent motion, blurry, jittery, distorted",
+  "output": "03-eyes-open-s103.mp4",
+  "metrics": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "torch": "2.11.0+cpu",
+    "encode_s": 182.8,
+    "rss_after_encode_gb": 14.63,
+    "load_s": 41.4,
+    "rss_after_load_gb": 14.63,
+    "step_s": [
+      131.4,
+      131.7,
+      130.8,
+      131.8,
+      132.0,
+      133.1,
+      133.0,
+      132.7
+    ],
+    "denoise_s": 1056.4,
+    "rss_after_denoise_gb": 14.63,
+    "decode_s": 245.1,
+    "rss_after_decode_gb": 14.63,
+    "total_s": 1526.4,
+    "peak_rss_gb": 14.63
+  }
+}
