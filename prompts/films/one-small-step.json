@@ -1,15 +1,24 @@
 {
   "name": "One Small Step",
-  "notes": "A short film written as language: one style bible, two cast sheets repeated word for word, and twelve shots that only say what happens and where the camera is. Text-to-video, rendered one shot per runner, cut together by scripts/assemble.py.",
+  "notes": "A short film written as language: one style bible, two cast sheets repeated word for word, and twelve shots that only say what happens and where the camera is. Text-to-video, rendered one shot per runner, cut together by scripts/assemble.py. Sound is written the same way: a `sound` line per shot for MMAudio (video-to-audio), and a `score` brief for ACE-Step 1.5 (text-to-music), mixed by scripts/mix.py.",
   "film": {
     "title": "ONE SMALL STEP",
     "subtitle": "a film rendered on borrowed CPUs",
     "end": "THE END",
-    "credits": "12 shots, written in words, rendered by LTX-Video 2B distilled on GitHub's free runners"
+    "credits": "12 shots, written in words, rendered by LTX-Video 2B distilled on GitHub's free runners",
+    "score": {
+      "caption": "Cinematic orchestral film score for a short space comedy. Opens with soft ethereal strings, celesta and wordless choir full of wonder, turns playful with pizzicato strings and light percussion for a chase, grows tense with low brass and ticking percussion, then swells into a triumphant full orchestra with brass and choir for a sunrise ending. Instrumental film soundtrack.",
+      "bpm": 96,
+      "key": "D minor",
+      "seed": 1969
+    }
   },
   "defaults": {
     "backend": "ltx-video-2b-distilled",
-    "size": [960, 416],
+    "size": [
+      960,
+      416
+    ],
     "fps": 24
   },
   "cast": {
@@ -19,52 +28,76 @@
   "style": "Cinematic shot on 35mm film, anamorphic widescreen, shallow depth of field, soft film grain, teal and amber color grade, volumetric light, photorealistic, highly detailed.",
   "clips": {
     "01-station-dawn": {
-      "seconds": 6, "seed": 101,
-      "prompt": "A large white space station drifts slowly above the Earth as the sun rises over the curved blue horizon. A golden band of sunlight sweeps across its long solar panels and white modules, and thin clouds glow far below over the dark ocean. The camera glides slowly alongside the station in a wide, steady tracking shot, with stars fading into the deep black sky."
+      "seconds": 6,
+      "seed": 101,
+      "prompt": "A large white space station drifts slowly above the Earth as the sun rises over the curved blue horizon. A golden band of sunlight sweeps across its long solar panels and white modules, and thin clouds glow far below over the dark ocean. The camera glides slowly alongside the station in a wide, steady tracking shot, with stars fading into the deep black sky.",
+      "sound": "deep low hum of a space station, soft electrical buzz, distant metal creaks"
     },
     "02-asleep": {
-      "seconds": 6, "seed": 102,
-      "prompt": "Inside a cramped space station module, {cat} floats asleep in mid-air, curled into a ball and turning very slowly, held loosely by a strap around its waist. Small green and blue panel lights blink on the white padded walls, and cables drift gently in zero gravity. The camera pushes in slowly toward the sleeping cat. Soft cool light from a small round window."
+      "seconds": 6,
+      "seed": 102,
+      "prompt": "Inside a cramped space station module, {cat} floats asleep in mid-air, curled into a ball and turning very slowly, held loosely by a strap around its waist. Small green and blue panel lights blink on the white padded walls, and cables drift gently in zero gravity. The camera pushes in slowly toward the sleeping cat. Soft cool light from a small round window.",
+      "sound": "quiet air ventilation hum, soft cat purring, gentle beeps from a control panel"
     },
     "03-eyes-open": {
-      "seconds": 4, "seed": 103,
-      "prompt": "Extreme close-up of {cat}. Its eyes snap open behind the glass helmet, the pupils widen into large black circles, and its ears twitch forward. A tiny red reflection appears in the glass of the helmet. The camera is still, framed tightly on the face. Dim interior light with a red glow from off screen."
+      "seconds": 4,
+      "seed": 103,
+      "prompt": "Extreme close-up of {cat}. Its eyes snap open behind the glass helmet, the pupils widen into large black circles, and its ears twitch forward. A tiny red reflection appears in the glass of the helmet. The camera is still, framed tightly on the face. Dim interior light with a red glow from off screen.",
+      "sound": "a short surprised cat meow, a soft electronic beep"
     },
     "04-red-dot": {
-      "seconds": 4, "seed": 104,
-      "prompt": "A small bright red laser dot dances across the white padded wall panels of a space station module, jumping quickly from panel to panel and darting around a blinking control panel. The camera follows the dot in a close handheld shot. The rest of the module is dim, with soft blue light."
+      "seconds": 4,
+      "seed": 104,
+      "prompt": "A small bright red laser dot dances across the white padded wall panels of a space station module, jumping quickly from panel to panel and darting around a blinking control panel. The camera follows the dot in a close handheld shot. The rest of the module is dim, with soft blue light.",
+      "sound": "quick high electronic chirps, soft whirring, small beeps"
     },
     "05-the-chase": {
-      "seconds": 6, "seed": 105,
-      "prompt": "{cat} pushes off a white wall and glides fast through a long cylindrical space station module, front paws stretched forward, chasing a red laser dot ahead of it. Loose cables, a floating pen and a drifting sandwich spin past. The camera tracks alongside the cat at the same speed in a smooth side-on shot. Bright white interior light."
+      "seconds": 6,
+      "seed": 105,
+      "prompt": "{cat} pushes off a white wall and glides fast through a long cylindrical space station module, front paws stretched forward, chasing a red laser dot ahead of it. Loose cables, a floating pen and a drifting sandwich spin past. The camera tracks alongside the cat at the same speed in a smooth side-on shot. Bright white interior light.",
+      "sound": "cat paws thumping on padded walls, fast rushing air, small objects bumping and spinning"
     },
     "06-cupola": {
-      "seconds": 6, "seed": 106,
-      "prompt": "{cat} tumbles slowly head over heels into a round observation dome with seven large windows, and stops with its paws pressed against the glass. Far below the window, the blue Earth turns slowly with white swirls of cloud. The camera is behind the cat, looking past it out of the window. Bright sunlight spills in through the glass."
+      "seconds": 6,
+      "seed": 106,
+      "prompt": "{cat} tumbles slowly head over heels into a round observation dome with seven large windows, and stops with its paws pressed against the glass. Far below the window, the blue Earth turns slowly with white swirls of cloud. The camera is behind the cat, looking past it out of the window. Bright sunlight spills in through the glass.",
+      "sound": "a soft thump against glass, cat purring, low ambient hum"
     },
     "07-hatch": {
-      "seconds": 8, "seed": 107,
-      "prompt": "A round hatch on the outside of a space station swings open and {cat} floats out into black space on a thin white tether, legs spread wide. The tether uncoils slowly behind it. The huge blue Earth fills the bottom of the frame and the sun flares over its edge. The camera holds a wide, slow shot from a distance, the cat small against the vast planet."
+      "seconds": 8,
+      "seed": 107,
+      "prompt": "A round hatch on the outside of a space station swings open and {cat} floats out into black space on a thin white tether, legs spread wide. The tether uncoils slowly behind it. The huge blue Earth fills the bottom of the frame and the sun flares over its edge. The camera holds a wide, slow shot from a distance, the cat small against the vast planet.",
+      "sound": "a heavy metal hatch hissing open, air rushing out, then a deep quiet rumble"
     },
     "08-the-hull": {
-      "seconds": 6, "seed": 108,
-      "prompt": "{cat} crawls low and slowly along the white outer hull of a space station, belly close to the metal, stalking a small red laser dot that glows on the panels ahead. Its tail swishes from side to side. The camera is low on the hull, looking along the surface toward the cat as it creeps closer. Hard sunlight and deep black shadows."
+      "seconds": 6,
+      "seed": 108,
+      "prompt": "{cat} crawls low and slowly along the white outer hull of a space station, belly close to the metal, stalking a small red laser dot that glows on the panels ahead. Its tail swishes from side to side. The camera is low on the hull, looking along the surface toward the cat as it creeps closer. Hard sunlight and deep black shadows.",
+      "sound": "slow soft scratching on metal, quiet paws on a metal hull, low rumble"
     },
     "09-the-mouse": {
-      "seconds": 5, "seed": 109,
-      "prompt": "{mouse} sits on the rim of a white satellite dish on the outside of a space station, holding a small silver laser pointer in both front paws and shining a thin red beam toward the camera. Its whiskers twitch and it grins. The camera slowly pushes in to a close-up of the mouse. The blue Earth glows softly far behind it."
+      "seconds": 5,
+      "seed": 109,
+      "prompt": "{mouse} sits on the rim of a white satellite dish on the outside of a space station, holding a small silver laser pointer in both front paws and shining a thin red beam toward the camera. Its whiskers twitch and it grins. The camera slowly pushes in to a close-up of the mouse. The blue Earth glows softly far behind it.",
+      "sound": "a tiny mouse squeak, a small electronic laser hum, a short click"
     },
     "10-standoff": {
-      "seconds": 4, "seed": 110,
-      "prompt": "Close-up of {cat} on the hull of a space station. It narrows its eyes slowly, lowers its body and wiggles its hind legs, ready to pounce. The camera is still, at eye level with the cat. Golden sunlight from the side, black space behind."
+      "seconds": 4,
+      "seed": 110,
+      "prompt": "Close-up of {cat} on the hull of a space station. It narrows its eyes slowly, lowers its body and wiggles its hind legs, ready to pounce. The camera is still, at eye level with the cat. Golden sunlight from the side, black space behind.",
+      "sound": "a low cat growl, tense quiet breathing"
     },
     "11-pounce": {
-      "seconds": 6, "seed": 111,
-      "prompt": "{cat} leaps off the hull of a space station and flies slowly through zero gravity across the frame, paws spread wide, chasing {mouse} that tumbles away just ahead of it. Both drift in a long slow arc in front of the huge blue Earth. The camera follows them in a smooth wide tracking shot. Sunrise light on their glass helmets."
+      "seconds": 6,
+      "seed": 111,
+      "prompt": "{cat} leaps off the hull of a space station and flies slowly through zero gravity across the frame, paws spread wide, chasing {mouse} that tumbles away just ahead of it. Both drift in a long slow arc in front of the huge blue Earth. The camera follows them in a smooth wide tracking shot. Sunrise light on their glass helmets.",
+      "sound": "a cat hissing, a fast whoosh of movement, a mouse squeaking"
     },
     "12-finale": {
-      "seconds": 8, "seed": 112,
-      "prompt": "Two tiny astronaut figures, an orange tabby cat and a small grey mouse, float side by side as small silhouettes against a brilliant sunrise over the curved Earth. The camera pulls back slowly and steadily to reveal the whole white space station turning beside them, with its long solar panels catching the golden light. Stars across the deep black sky."
+      "seconds": 8,
+      "seed": 112,
+      "prompt": "Two tiny astronaut figures, an orange tabby cat and a small grey mouse, float side by side as small silhouettes against a brilliant sunrise over the curved Earth. The camera pulls back slowly and steadily to reveal the whole white space station turning beside them, with its long solar panels catching the golden light. Stars across the deep black sky.",
+      "sound": "deep calm ambient hum, a soft rising swell"
     }
   }
 }

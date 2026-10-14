@@ -474,6 +474,24 @@ def test_the_committed_film_resolves():
     assert 55 <= sum(s.frames / s.fps for s in shots) <= 100, "a short film, not a clip"
 
 
+def test_the_film_is_written_for_sound_too():
+    spec = fm.load_spec(REPO / "prompts" / "films" / "one-small-step.json")
+    for item, raw in spec["clips"].items():
+        assert raw.get("sound", "").strip(), f"{item} has no sound line"
+    score = spec["film"]["score"]
+    assert 0 < len(score["caption"]) <= 512, "ACE-Step caps a caption at 512 characters"
+    assert 30 <= score["bpm"] <= 300 and score["key"]
+
+
+def test_mix_offsets_follow_the_cut(tmp_path):
+    sys.path.insert(0, str(REPO / "scripts"))
+    import mix
+    shots = mix.offsets(REPO / "prompts" / "films" / "one-small-step.json")
+    assert shots[0][1] == mix.CARD_SECONDS, "the first shot starts after the title card"
+    for (_, s0, d0), (_, s1, _) in zip(shots, shots[1:]):
+        assert abs(s0 + d0 - s1) < 1e-9, "each shot starts where the last one ends"
+
+
 def test_the_committed_spec_carries_the_runner_clips():
     clips = {c.item: c for c in fm.resolve_clips(fm.load_spec(REPO / fm.DEFAULT_SPEC), root=REPO)}
     smoke, full = clips["forgemaster-smoke"], clips["forgemaster-10s"]

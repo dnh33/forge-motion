@@ -1,0 +1,208 @@
+name: Sound on CPU runners
+# Generative sound for a cut film, on free GitHub-hosted runners (4 vCPU, 16 GB, no GPU):
+#   effects  MMAudio (video-to-audio), one runner per shot, from each shot's `sound` line
+#   score    ACE-Step 1.5 turbo (text-to-music, DiT only), one runner, from the film's `score` brief
+#   mix      scripts/mix.py: effects on their cuts, the score ducked beneath, -14 LUFS
+# Shots and the silent film are read from the renders branch, where render.yml put them.
+# smoke: effects for the Forgemaster clip and 30 s of score, to measure before a full film.
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: "Film spec"
+        default: "prompts/films/one-small-step.json"
+        type: string
+      smoke:
+        description: "Smoke: one clip of effects + 30 s of score, nothing mixed"
+        default: false
+        type: boolean
+      publish:
+        description: "Commit the sound (and the film with sound) to the renders branch"
+        default: true
+        type: boolean
+permissions:
+  contents: write
+concurrency: {group: "audio-${{ inputs.spec }}", cancel-in-progress: false}
+env:
+  SPEC: ${{ inputs.spec }}
+  SMOKE: ${{ inputs.smoke }}
+  MMAUDIO_SHA: 974010a026c731054592d8f777218bd9d85a6c24
+  ACESTEP_SHA: ca1e85fe9430179831e6bc6be790c332190a3866
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+  PYTHONUNBUFFERED: "1"
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shots: ${{ steps.p.outputs.shots }}
+      name: ${{ steps.p.outputs.name }}
+      total: ${{ steps.p.outputs.total }}
+      score: ${{ steps.p.outputs.score }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys
+          sys.path.insert(0, "scripts")
+          import forge_motion as fm
+          from pathlib import Path
+          from assemble import CARD_SECONDS
+          spec_path = Path(os.environ["SPEC"]); spec = fm.load_spec(spec_path)
+          name = spec_path.stem
+          if os.environ["SMOKE"] == "true":
+              shots = [{"item": "forgemaster-10s", "seconds": 8.0,
+                        "video": "renders/forgemaster-10s/forgemaster-10s-s1103.mp4",
+                        "sound": "a candle flame crackling softly, faint wind, low ambient hum"}]
+              name, total = "audio-smoke", 30.0
+          else:
+              clips = fm.resolve_clips(spec, root=Path.cwd())
+              shots = [{"item": c.item, "seconds": round(c.frames / c.fps, 3),
+                        "video": f"renders/{name}/shots/{c.out_name}.mp4",
+                        "sound": spec["clips"][c.item]["sound"]} for c in clips]
+              total = round(sum(s["seconds"] for s in shots) + 2 * CARD_SECONDS, 3)
+          score = spec["film"]["score"]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"shots={json.dumps({'include': shots})}\n")
+              out.write(f"name={name}\ntotal={total}\nscore={json.dumps(score)}\n")
+          print(json.dumps({"name": name, "total": total, "shots": len(shots)}))
+          EOF
+
+  sfx:
+    needs: plan
+    name: sfx ${{ matrix.item }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.plan.outputs.shots) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The shot
+        run: |
+          git fetch --depth 1 origin renders:refs/remotes/origin/renders
+          git show "origin/renders:${{ matrix.video }}" > shot.mp4
+          ls -la shot.mp4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: MMAudio (pinned) on CPU torch
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          git clone -q https://github.com/hkchengrex/MMAudio mmaudio && git -C mmaudio checkout -q "$MMAUDIO_SHA"
+          python -m pip install --quiet torch==2.11.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --quiet -e mmaudio
+          python -m pip freeze | grep -iE '^(torch|torchaudio|torchvision|torchcodec|open.clip|av)=='
+      - name: Effects
+        env:
+          SOUND: ${{ matrix.sound }}
+        run: |
+          mkdir -p out
+          ( while true; do echo "$(date +%T) $(free -m | awk '/Mem/{print "used",$3,"avail",$7} /Swap/{print "swap",$3}' | tr '\n' ' ')"; sleep 30; done ) > "out/${{ matrix.item }}.mem.log" &
+          MON=$!
+          python scripts/sfx.py --mmaudio mmaudio --video shot.mp4 --prompt "$SOUND" \
+            --duration "${{ matrix.seconds }}" --out "out/${{ matrix.item }}.flac" 2>&1 | tee "out/${{ matrix.item }}.sfx.log"
+          rc=${PIPESTATUS[0]}; kill "$MON" || true; exit "$rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sfx-${{ matrix.item }}
+          path: out/
+          if-no-files-found: warn
+          retention-days: 30
+
+  score:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk, add swap
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo fallocate -l 8G /swap2 && sudo chmod 600 /swap2 && sudo mkswap /swap2 && sudo swapon /swap2
+          df -h / ; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ACE-Step 1.5 (pinned), DiT only, on CPU torch
+        # Installed without its own dependency list: that pins CUDA torch builds and a
+        # git-sourced nano-vllm, which only the 5 Hz LM needs. The LM is not used here.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libsndfile1 > /dev/null
+          git clone -q https://github.com/ace-step/ACE-Step-1.5 acestep && git -C acestep checkout -q "$ACESTEP_SHA"
+          python -m pip install --quiet torch==2.11.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --quiet --no-deps -e acestep
+          python -m pip install --quiet "transformers>=4.51.0,<4.58.0" "diffusers>=0.37.0" scipy soundfile loguru \
+            einops "accelerate>=1.12.0" diskcache numba "vector-quantize-pytorch>=1.27.15" torchcodec \
+            "torchao>=0.16.0,<0.17.0" toml modelscope typer-slim pytorch-wavelets pywavelets matplotlib \
+            peft huggingface_hub safetensors sentencepiece
+          python -m pip freeze | grep -iE '^(torch|torchaudio|transformers|diffusers|torchao)=='
+      - name: Score
+        env:
+          SCORE: ${{ needs.plan.outputs.score }}
+          TOTAL: ${{ needs.plan.outputs.total }}
+        run: |
+          mkdir -p out
+          ( while true; do echo "$(date +%T) $(free -m | awk '/Mem/{print "used",$3,"avail",$7} /Swap/{print "swap",$3}' | tr '\n' ' ')"; sleep 30; done ) > out/score.mem.log &
+          MON=$!
+          CAPTION=$(python -c "import json,os;print(json.loads(os.environ['SCORE'])['caption'])")
+          BPM=$(python -c "import json,os;print(json.loads(os.environ['SCORE'])['bpm'])")
+          KEY=$(python -c "import json,os;print(json.loads(os.environ['SCORE'])['key'])")
+          SEED=$(python -c "import json,os;print(json.loads(os.environ['SCORE']).get('seed', 7))")
+          python scripts/music.py --acestep acestep --caption "$CAPTION" --duration "$TOTAL" \
+            --bpm "$BPM" --key "$KEY" --seed "$SEED" --out out/score.flac 2>&1 | tee out/score.log
+          rc=${PIPESTATUS[0]}; kill "$MON" || true; exit "$rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: score
+          path: out/
+          if-no-files-found: warn
+          retention-days: 30
+
+  mix:
+    needs: [plan, sfx, score]
+    if: always() && needs.plan.result == 'success' && inputs.publish
+    runs-on: ubuntu-latest
+    env:
+      NAME: ${{ needs.plan.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/download-artifact@v4
+        with: {pattern: "sfx-*", path: sfx, merge-multiple: true}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: {name: score, path: score}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Mix
+        id: mix
+        if: inputs.smoke == false
+        continue-on-error: true
+        run: |
+          python -m pip install --quiet pillow "imageio[ffmpeg]"
+          git fetch origin renders:refs/remotes/origin/renders
+          git show "origin/renders:renders/$NAME/$NAME.mp4" > film.mp4
+          SCORE_ARG=""; [ -f score/score.flac ] && SCORE_ARG="--score score/score.flac"
+          python scripts/mix.py --spec "$SPEC" --film film.mp4 --sfx sfx $SCORE_ARG --out "mixed/$NAME-sound.mp4"
+      - name: Commit to the renders branch
+        run: |
+          set -e
+          mkdir -p /tmp/pub/sound && cp -r sfx/. /tmp/pub/sound/ 2>/dev/null || true
+          cp -r score/. /tmp/pub/sound/ 2>/dev/null || true
+          [ -d mixed ] && cp mixed/* /tmp/pub/ || true
+          git config user.name "render-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin renders:refs/remotes/origin/renders
+          git checkout -B renders origin/renders
+          mkdir -p "renders/$NAME"
+          cp -r /tmp/pub/. "renders/$NAME/"
+          git add renders
+          git commit -m "$NAME sound from run ${{ github.run_id }}" || { echo "Nothing new"; exit 0; }
+          # render.yml may publish to the same branch at the same time
+          for i in 1 2 3 4; do git push origin renders && exit 0; git pull --rebase origin renders; done
+          exit 1

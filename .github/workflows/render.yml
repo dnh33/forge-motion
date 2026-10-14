@@ -150,4 +150,7 @@ jobs:
           cp /tmp/dl/* "renders/$NAME/shots/" 2>/dev/null || true
           [ -d /tmp/film ] && cp /tmp/film/* "renders/$NAME/" || true
           git add renders
-          (git commit -m "$NAME from run ${{ github.run_id }}" && git push origin renders) || echo "Nothing new"
+          git commit -m "$NAME from run ${{ github.run_id }}" || { echo "Nothing new"; exit 0; }
+          # audio.yml may publish to the same branch at the same time
+          for i in 1 2 3 4; do git push origin renders && exit 0; git pull --rebase origin renders; done
+          exit 1
