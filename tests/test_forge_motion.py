@@ -492,6 +492,20 @@ def test_mix_offsets_follow_the_cut(tmp_path):
         assert abs(s0 + d0 - s1) < 1e-9, "each shot starts where the last one ends"
 
 
+def test_mix_gain_brings_an_effect_to_the_target():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import mix
+    assert mix.gain_to(-24.0, (-3.6, -0.3)) == -20.4, "a shouting effect is turned down"
+    assert mix.gain_to(-24.0, (-36.0, -20.0)) == 12.0, "a whisper is turned up"
+
+
+def test_mix_gain_never_pushes_an_effect_past_its_peak_room():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import mix
+    # quiet on average but with a near-full-scale transient: the peak caps the gain
+    assert mix.gain_to(-24.0, (-30.0, -1.0), peak_room=-3.0) == -2.0
+
+
 def test_the_committed_spec_carries_the_runner_clips():
     clips = {c.item: c for c in fm.resolve_clips(fm.load_spec(REPO / fm.DEFAULT_SPEC), root=REPO)}
     smoke, full = clips["forgemaster-smoke"], clips["forgemaster-10s"]

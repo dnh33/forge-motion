@@ -16,6 +16,10 @@ on:
         description: "Smoke: one clip of effects + 30 s of score, nothing mixed"
         default: false
         type: boolean
+      remix:
+        description: "Remix only: re-mix the sound already on the renders branch, generate nothing"
+        default: false
+        type: boolean
       publish:
         description: "Commit the sound (and the film with sound) to the renders branch"
         default: true
@@ -69,6 +73,7 @@ jobs:
 
   sfx:
     needs: plan
+    if: ${{ !inputs.remix }}
     name: sfx ${{ matrix.item }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -113,6 +118,7 @@ jobs:
 
   score:
     needs: plan
+    if: ${{ !inputs.remix }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
@@ -174,10 +180,22 @@ jobs:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.remix }}
         with: {pattern: "sfx-*", path: sfx, merge-multiple: true}
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.remix }}
         continue-on-error: true
         with: {name: score, path: score}
+      - name: Sound from the renders branch (remix)
+        if: inputs.remix
+        run: |
+          git fetch origin renders:refs/remotes/origin/renders
+          git archive origin/renders "renders/$NAME/sound" | tar -x
+          mkdir -p sfx score
+          cp renders/$NAME/sound/*.flac sfx/
+          mv sfx/score.flac score/ 2>/dev/null || true
+          rm -rf renders
+          ls sfx score
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
