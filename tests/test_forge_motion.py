@@ -318,6 +318,82 @@ def test_a_fully_provisioned_machine_reports_no_blockers(tmp_path):
     assert fm.check_backend(clip, report, available=available) == []
 
 
+# ------------------------------------------------------------- cpu / distilled
+
+DISTILLED = "ltx-video-2b-distilled"
+CPU_REPORT = {"cuda": False, "torch": "2.11", "diffusers": "0.41", "vram_gb": None}
+TOKENIZER_OK = {"sentencepiece", "protobuf", "tiktoken"}
+
+
+def distilled_clip(tmp_path, **extra):
+    spec_path, _ = make_spec(tmp_path, {"a": {"prompt": "p", "backend": DISTILLED, **extra}})
+    return fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0]
+
+
+def test_the_distilled_backend_defaults_to_its_fixed_schedule(tmp_path):
+    clip = distilled_clip(tmp_path)
+    assert clip.steps == len(fm.BACKENDS[DISTILLED]["timesteps"]) == 8
+
+
+def test_the_distilled_schedule_cannot_be_overridden(tmp_path):
+    """The checkpoint is timestep-distilled: other step counts are not a slower
+    render, they are a wrong one."""
+    try:
+        distilled_clip(tmp_path, steps=20)
+    except fm.SpecError as e:
+        assert "8" in str(e)
+    else:
+        raise AssertionError("expected SpecError")
+
+
+def test_the_manifest_records_the_timesteps(tmp_path):
+    m = distilled_clip(tmp_path).manifest()
+    assert m["timesteps"] == fm.BACKENDS[DISTILLED]["timesteps"]
+    assert m["guidance_scale"] == 1.0
+
+
+def test_a_cpu_render_does_not_ask_for_cuda(tmp_path):
+    clip = distilled_clip(tmp_path)
+    assert fm.check_backend(clip, CPU_REPORT, available=TOKENIZER_OK, device="cpu") == []
+
+
+def test_a_backend_without_a_cpu_path_is_refused_on_cpu(tmp_path):
+    spec_path, _ = make_spec(tmp_path)
+    clip = fm.resolve_clips(fm.load_spec(spec_path), root=tmp_path)[0]
+    blockers = fm.check_backend(clip, CPU_REPORT, available=TOKENIZER_OK, device="cpu")
+    assert any("CPU" in b for b in blockers), blockers
+
+
+def test_a_cpu_render_still_needs_torch(tmp_path):
+    clip = distilled_clip(tmp_path)
+    bare = {"cuda": False, "torch": None, "diffusers": None, "vram_gb": None}
+    blockers = fm.check_backend(clip, bare, available=TOKENIZER_OK, device="cpu")
+    assert any("torch" in b for b in blockers)
+    assert not any("CUDA" in b for b in blockers), "cpu must not demand a CUDA device"
+
+
+def test_a_cpu_render_refuses_before_importing_anything_heavy(tmp_path):
+    clip = distilled_clip(tmp_path)
+    bare = {"cuda": False, "torch": None, "diffusers": None, "vram_gb": None}
+    try:
+        fm.render(clip, tmp_path / "out", bare, device="cpu")
+    except RuntimeError as e:
+        assert "cannot render" in str(e)
+    else:
+        raise AssertionError("expected RuntimeError")
+    assert not (tmp_path / "out").exists()
+
+
+def test_the_committed_spec_carries_the_runner_clips():
+    clips = {c.item: c for c in fm.resolve_clips(fm.load_spec(REPO / fm.DEFAULT_SPEC), root=REPO)}
+    smoke, full = clips["forgemaster-smoke"], clips["forgemaster-10s"]
+    for c in (smoke, full):
+        assert c.backend == DISTILLED
+        assert all(v % 32 == 0 for v in c.size), "LTX pads anything off the 32 grid"
+    assert smoke.frames == 49
+    assert full.frames == 241
+
+
 # ----------------------------------------------------------------------- cli
 
 def test_plan_reports_the_frames_and_the_cost(tmp_path):

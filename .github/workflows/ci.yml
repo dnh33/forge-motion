@@ -3,7 +3,8 @@ name: ci
 # A runner has no CUDA device, which is exactly the condition `check` reports.
 on:
   push:
-    branches: ["**"]
+    # renders holds clips, not code.
+    branches-ignore: [renders]
   pull_request:
 
 jobs:

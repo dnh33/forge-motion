@@ -51,6 +51,24 @@ BACKENDS = {
         "min_vram_gb": 16,
         "note": "highest quality of the three, and the heaviest",
     },
+    # The only backend with a CPU path, and the one the runner workflow uses. The
+    # checkpoint ships as one original-format file; its transformer and VAE match
+    # the 0.9.5 diffusers configs (read from the file's own header), and 0.9.5 is
+    # where the T5 encoder, tokenizer and scheduler come from. The T5 is 17.7 GB of
+    # fp32 on disk and ~9 GB once loaded in bf16, so it runs first and is freed
+    # before the transformer loads.
+    "ltx-video-2b-distilled": {
+        "label": "LTX-Video 2B 0.9.8 distilled",
+        "repo": "Lightricks/LTX-Video",
+        "single_file": "ltxv-2b-0.9.8-distilled.safetensors",
+        "config_repo": "Lightricks/LTX-Video-0.9.5",
+        "approx_download_gb": 23.6,
+        "min_vram_gb": 8,
+        "cpu": True,
+        # Guidance- and timestep-distilled: this schedule, guidance 1.0, no CFG.
+        "timesteps": [1000, 993, 987, 981, 975, 909, 725, 0.03],
+        "note": "8 fixed steps, one forward pass each; the only backend that runs on a CPU",
+    },
 }
 DEFAULT_BACKEND = "ltx-video-2b"
 
@@ -102,7 +120,13 @@ class Clip:
         return f"{self.item}-s{self.seed}"
 
     def manifest(self) -> dict:
+        backend = BACKENDS[self.backend]
+        schedule = (
+            {"timesteps": backend["timesteps"], "guidance_scale": 1.0}
+            if "timesteps" in backend else {}
+        )
         return {
+            **schedule,
             "item": self.item,
             "source": str(self.source),
             "prompt": self.prompt,
@@ -149,7 +173,14 @@ def resolve_clips(spec: dict, root: Path | None = None, only: str | None = None)
     for name, raw in items.items():
         if not isinstance(raw, dict):
             raise SpecError(f"clip {name!r} must be an object")
-        merged = {**CLIP_DEFAULTS, **raw}
+        backend_raw = raw.get("backend", CLIP_DEFAULTS["backend"])
+        fixed = BACKENDS.get(backend_raw, {}).get("timesteps")
+        if fixed is not None and "steps" in raw and int(raw["steps"]) != len(fixed):
+            raise SpecError(
+                f"clip {name!r} asks for {raw['steps']} steps, but {backend_raw} is "
+                f"timestep-distilled to exactly {len(fixed)}"
+            )
+        merged = {**CLIP_DEFAULTS, **({"steps": len(fixed)} if fixed else {}), **raw}
 
         prompt = (merged.get("prompt") or "").strip()
         if not prompt:
@@ -248,12 +279,16 @@ def tokenizer_blockers(available) -> list:
     ]
 
 
-def check_backend(clip: Clip, report: dict, available=None) -> list:
+def check_backend(clip: Clip, report: dict, available=None, device: str = "cuda") -> list:
     """Return the list of things standing between this clip and a render."""
     missing = []
+    backend = BACKENDS[clip.backend]
+    if device == "cpu" and not backend.get("cpu"):
+        missing.append(f"{backend['label']} has no CPU path (use ltx-video-2b-distilled)")
     if report["torch"] is None:
-        missing.append("torch (with CUDA) is not installed")
-    elif not report["cuda"]:
+        missing.append("torch is not installed" if device == "cpu"
+                       else "torch (with CUDA) is not installed")
+    elif device != "cpu" and not report["cuda"]:
         missing.append("torch is installed but no CUDA device is visible")
     if report["diffusers"] is None:
         missing.append("diffusers is not installed")
@@ -262,9 +297,9 @@ def check_backend(clip: Clip, report: dict, available=None) -> list:
         available = importable({"sentencepiece", "protobuf", "tiktoken"})
     missing += tokenizer_blockers(available)
 
-    need = BACKENDS[clip.backend]["min_vram_gb"]
+    need = backend["min_vram_gb"]
     have = report.get("vram_gb")
-    if have is not None and have < need:
+    if device != "cpu" and have is not None and have < need:
         missing.append(
             f"{BACKENDS[clip.backend]['label']} wants about {need} GB of VRAM, "
             f"this device reports {have} GB"
@@ -274,18 +309,21 @@ def check_backend(clip: Clip, report: dict, available=None) -> list:
 
 # --------------------------------------------------------------------- render
 
-def render(clip: Clip, out_dir: Path, report: dict) -> Path:
+def render(clip: Clip, out_dir: Path, report: dict, device: str = "cuda",
+           dtype: str = "bfloat16") -> Path:
     """Render one clip. Imports the heavy stack here, not at module import.
 
     Image-to-video is a different pipeline class from text-to-video: LTXPipeline
     takes a prompt alone, while LTXImageToVideoPipeline takes the frame to animate.
     """
-    blockers = check_backend(clip, report)
+    blockers = check_backend(clip, report, device=device)
     if blockers:
         raise RuntimeError(
             "cannot render: " + "; ".join(blockers)
             + "\nRun `forge_motion.py check` for the full picture."
         )
+    if "single_file" in BACKENDS[clip.backend]:
+        return render_distilled(clip, out_dir, device, dtype)
 
     import torch  # noqa: PLC0415
     from diffusers import LTXImageToVideoPipeline  # type: ignore  # noqa: PLC0415
@@ -323,6 +361,115 @@ def render(clip: Clip, out_dir: Path, report: dict) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{clip.out_name}.mp4"
     export_to_video(frames, str(out), fps=clip.fps)
+    return out
+
+
+def peak_rss_gb() -> float | None:
+    """Peak resident memory of this process, or None where getrusage is absent."""
+    try:
+        import resource  # noqa: PLC0415  (POSIX only)
+    except ImportError:
+        return None
+    # ru_maxrss is KiB on Linux.
+    return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2, 2)
+
+
+def render_distilled(clip: Clip, out_dir: Path, device: str, dtype_name: str) -> Path:
+    """Render with the single-file distilled checkpoint, on CPU or GPU.
+
+    Memory is staged so the peak is the larger of the two halves, not their sum:
+    the T5 encoder (~9 GB in bf16) encodes the prompt and is dropped before the
+    transformer and VAE load. Every phase is timed and written to a sidecar, because
+    the point of a runner job is the measurement as much as the clip.
+    """
+    import gc  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    import torch  # noqa: PLC0415
+    from diffusers import (  # type: ignore  # noqa: PLC0415
+        AutoencoderKLLTXVideo, FlowMatchEulerDiscreteScheduler,
+        LTXConditionPipeline, LTXVideoTransformer3DModel,
+    )
+    from diffusers.utils import export_to_video  # type: ignore  # noqa: PLC0415
+    from huggingface_hub import hf_hub_download  # noqa: PLC0415
+    from PIL import Image  # noqa: PLC0415
+    from transformers import T5EncoderModel, T5TokenizerFast  # noqa: PLC0415
+
+    backend = BACKENDS[clip.backend]
+    cfg = backend["config_repo"]
+    dtype = getattr(torch, dtype_name)
+    if device == "cpu":
+        torch.set_num_threads(os.cpu_count() or 1)
+    metrics: dict = {"device": device, "dtype": dtype_name, "threads": torch.get_num_threads(),
+                     "torch": torch.__version__}
+    t0 = time.perf_counter()
+
+    def mark(phase: str, since: float) -> float:
+        now = time.perf_counter()
+        metrics[f"{phase}_s"] = round(now - since, 1)
+        metrics[f"rss_after_{phase}_gb"] = peak_rss_gb()
+        print(f"[{phase}] {now - since:.1f}s, peak rss {peak_rss_gb()} GB", flush=True)
+        return now
+
+    # 1. Prompt -> embeddings, then free the encoder.
+    tokenizer = T5TokenizerFast.from_pretrained(cfg, subfolder="tokenizer")
+    text_encoder = T5EncoderModel.from_pretrained(
+        cfg, subfolder="text_encoder", torch_dtype=torch.bfloat16, low_cpu_mem_usage=True)
+    enc = LTXConditionPipeline(scheduler=None, vae=None, text_encoder=text_encoder,
+                               tokenizer=tokenizer, transformer=None).to(device)
+    with torch.no_grad():
+        embeds, mask, _, _ = enc.encode_prompt(
+            clip.prompt, do_classifier_free_guidance=False, device=device)
+    embeds = embeds.to(dtype)
+    del enc, text_encoder
+    gc.collect()
+    t = mark("encode", t0)
+
+    # 2. Transformer + VAE from the one checkpoint file.
+    ckpt = hf_hub_download(backend["repo"], backend["single_file"])
+    transformer = LTXVideoTransformer3DModel.from_single_file(
+        ckpt, config=cfg, subfolder="transformer", torch_dtype=dtype)
+    vae = AutoencoderKLLTXVideo.from_single_file(ckpt, config=cfg, subfolder="vae", torch_dtype=dtype)
+    vae.enable_tiling()
+    scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(cfg, subfolder="scheduler")
+    pipe = LTXConditionPipeline(scheduler=scheduler, vae=vae, text_encoder=None,
+                                tokenizer=tokenizer, transformer=transformer).to(device)
+    t = mark("load", t)
+
+    # 3. Denoise and decode. One line per step so a watched log shows the rate as it
+    # happens; the time from the last step to the return is the VAE decode.
+    steps: list = []
+    last = [0.0]
+
+    def on_step(_pipe, i, _t, kwargs):
+        now = time.perf_counter()
+        steps.append(round(now - last[0], 1))
+        last[0] = now
+        print(f"[step {i + 1}/{clip.steps}] {steps[-1]}s, peak rss {peak_rss_gb()} GB", flush=True)
+        return kwargs
+
+    image = Image.open(clip.source).convert("RGB").resize(tuple(clip.size))
+    t = last[0] = time.perf_counter()
+    with torch.no_grad():
+        frames = pipe(
+            image=image, prompt_embeds=embeds, prompt_attention_mask=mask,
+            width=clip.size[0], height=clip.size[1], num_frames=clip.frames,
+            frame_rate=clip.fps, timesteps=backend["timesteps"], guidance_scale=1.0,
+            image_cond_noise_scale=0.025, decode_timestep=0.05, decode_noise_scale=0.025,
+            generator=torch.Generator(device=device).manual_seed(clip.seed),
+            callback_on_step_end=on_step,
+        ).frames[0]
+    metrics["step_s"] = steps
+    metrics["denoise_s"] = round(last[0] - t, 1)
+    t = mark("decode", last[0])
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{clip.out_name}.mp4"
+    export_to_video(frames, str(out), fps=clip.fps)
+    metrics["total_s"] = round(time.perf_counter() - t0, 1)
+    metrics["peak_rss_gb"] = peak_rss_gb()
+    sidecar = {**clip.manifest(), "metrics": metrics}
+    (out_dir / f"{clip.out_name}.json").write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
     return out
 
 
@@ -369,7 +516,7 @@ def _check(args) -> int:
     print(f"\nclips ({len(clips)})")
     ready = True
     for c in clips:
-        blockers = check_backend(c, report)
+        blockers = check_backend(c, report, device=args.device)
         if blockers:
             ready = False
             print(f"  {c.item}: BLOCKED")
@@ -379,7 +526,7 @@ def _check(args) -> int:
             print(f"  {c.item}: ready")
     if not ready:
         print("\ninstall the GPU stack and try again:")
-        print("  python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu124")
+        print("  python3 -m pip install torch --index-url https://download.pytorch.org/whl/cu128")
         print("  python3 -m pip install diffusers transformers accelerate imageio[ffmpeg] pillow")
     return 0 if ready else 1
 
@@ -395,7 +542,7 @@ def _render(args) -> int:
     failed = 0
     for c in clips:
         try:
-            out = render(c, Path(args.out), report)
+            out = render(c, Path(args.out), report, device=args.device, dtype=args.dtype)
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 3
@@ -418,11 +565,15 @@ def main(argv=None) -> int:
     p.set_defaults(func=_plan)
 
     c = sub.add_parser("check", help="report what this machine can render (no GPU needed)")
+    c.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
     c.set_defaults(func=_check)
 
-    r = sub.add_parser("render", help="render clips (needs a CUDA GPU)")
+    r = sub.add_parser("render", help="render clips (CUDA, or CPU for the distilled backend)")
     r.add_argument("--item", required=True)
     r.add_argument("--out", default="renders")
+    r.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
+    r.add_argument("--dtype", choices=["bfloat16", "float32"], default="bfloat16",
+                   help="weights and activations for the distilled backend")
     r.set_defaults(func=_render)
 
     args = ap.parse_args(argv)

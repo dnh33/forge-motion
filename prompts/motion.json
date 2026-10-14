@@ -1,6 +1,6 @@
 {
   "name": "Motion studies",
-  "notes": "One clip per item. 'from' is the still the motion starts from; forge-images publishes these under renders/<set>/. The committed seed.png is a placeholder so `plan` works out of the box.",
+  "notes": "One clip per item. 'from' is the still the motion starts from; forge-images publishes these under renders/<set>/. The committed seed.png is a placeholder so `plan` works out of the box. The forgemaster clips run on GitHub's CPU runners (render.yml): the still is forge-images renders/portraits/portraits-forgemaster-s1103.png, at 288x384 (3:4, on the 32 grid).",
   "clips": {
     "seed-drift": {
       "from": "prompts/seed.png",
@@ -8,8 +8,35 @@
       "backend": "ltx-video-2b",
       "fps": 24,
       "seconds": 3,
-      "size": [512, 768],
+      "size": [
+        512,
+        768
+      ],
       "seed": 7
+    },
+    "forgemaster-smoke": {
+      "from": "prompts/stills/portraits-forgemaster-s1103.png",
+      "prompt": "A hooded figure in a dark iron mask with round glowing orange eyes holds a lit candle on a brass dish. The candle flame flickers gently, a thin ribbon of grey smoke curls upward and drifts to the left, the orange eyes pulse softly. The figure breathes slowly and the red cloak shifts slightly. The camera holds still with a very slow push in. Dark oil painting, warm candlelight, muted background.",
+      "backend": "ltx-video-2b-distilled",
+      "fps": 24,
+      "size": [
+        288,
+        384
+      ],
+      "seed": 1103,
+      "seconds": 2
+    },
+    "forgemaster-10s": {
+      "from": "prompts/stills/portraits-forgemaster-s1103.png",
+      "prompt": "A hooded figure in a dark iron mask with round glowing orange eyes holds a lit candle on a brass dish. The candle flame flickers gently, a thin ribbon of grey smoke curls upward and drifts to the left, the orange eyes pulse softly. The figure breathes slowly and the red cloak shifts slightly. The camera holds still with a very slow push in. Dark oil painting, warm candlelight, muted background.",
+      "backend": "ltx-video-2b-distilled",
+      "fps": 24,
+      "size": [
+        288,
+        384
+      ],
+      "seed": 1103,
+      "seconds": 10
     }
   }
 }
