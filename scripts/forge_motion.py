@@ -73,6 +73,10 @@ BACKENDS = {
 }
 DEFAULT_BACKEND = "ltx-video-2b"
 
+# A film opens and closes on a card this long; assemble.py cuts it, mix.py and
+# audio.yml time the sound against it.
+CARD_SECONDS = 3.5
+
 CLIP_DEFAULTS = {
     "backend": DEFAULT_BACKEND, "fps": 24, "seconds": 3, "size": [512, 768],
     # The LTX base model is not step-distilled; its own guidance is ~50 steps.

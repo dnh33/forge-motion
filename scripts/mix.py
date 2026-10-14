@@ -20,7 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import forge_motion as fm  # noqa: E402
-from assemble import CARD_SECONDS, ffmpeg  # noqa: E402
+from assemble import ffmpeg  # noqa: E402
+
+CARD_SECONDS = fm.CARD_SECONDS
 
 import subprocess  # noqa: E402
 

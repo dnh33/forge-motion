@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import forge_motion as fm  # noqa: E402
 
-CARD_SECONDS = 3.5
+CARD_SECONDS = fm.CARD_SECONDS
 FADE_SECONDS = 0.75
 FONTS = [  # first that loads wins: runner (DejaVu, Liberation), then Windows
     "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",

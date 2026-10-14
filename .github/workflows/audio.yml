@@ -47,7 +47,6 @@ jobs:
           sys.path.insert(0, "scripts")
           import forge_motion as fm
           from pathlib import Path
-          from assemble import CARD_SECONDS
           spec_path = Path(os.environ["SPEC"]); spec = fm.load_spec(spec_path)
           name = spec_path.stem
           if os.environ["SMOKE"] == "true":
@@ -60,7 +59,7 @@ jobs:
               shots = [{"item": c.item, "seconds": round(c.frames / c.fps, 3),
                         "video": f"renders/{name}/shots/{c.out_name}.mp4",
                         "sound": spec["clips"][c.item]["sound"]} for c in clips]
-              total = round(sum(s["seconds"] for s in shots) + 2 * CARD_SECONDS, 3)
+              total = round(sum(s["seconds"] for s in shots) + 2 * fm.CARD_SECONDS, 3)
           score = spec["film"]["score"]
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               out.write(f"shots={json.dumps({'include': shots})}\n")
