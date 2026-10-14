@@ -1,23 +1,23 @@
 # forge-motion
 
-> ## Status: EXPERIMENTAL. Not the default path.
+> ## Status: the runner path is the default. The local GPU path is EXPERIMENTAL.
 >
-> **The default way to produce imagery in this project is the cloud pipeline:
-> [forge-images](https://github.com/dnh33/forge-images), running on GitHub's
-> runners.** It is slow, and that is an accepted trade. It costs nothing, it needs
-> nothing installed, and it cannot affect the machine you are sitting at.
+> **Clips render on GitHub's free CPU runners** with
+> [`render.yml`](.github/workflows/render.yml): Actions, "Render on a CPU runner",
+> pick a clip. It costs nothing, needs nothing installed, and cannot affect the
+> machine you are sitting at. Measured: a **10 second, 384x512 clip in 32 minutes**
+> (numbers below).
 >
-> This repository is a **local GPU experiment**. It works, and every number below
-> is measured on real hardware, but the run **saturated the VRAM that the display
+> The local GPU path works too, but its run **saturated the VRAM that the display
 > also needs and froze the owner's PC**. It is kept as a record and for
-> deliberate experimentation. It is not recommended, and it is not the path any
-> tooling here should reach for by default.
+> deliberate experimentation, and no tooling here should reach for it by default.
 
-Turn a still into a short clip, on your own GPU.
+Turn a still into a short clip.
 
-Still images come from the cloud pipeline; motion is synthesised locally, because
-video diffusion does not fit a free CPU runner at any sane cost. The reasoning,
-with the numbers, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Still images come from the cloud pipeline ([forge-images](https://github.com/dnh33/forge-images));
+motion comes from LTX-Video 2B 0.9.8 distilled, on a runner's CPU. Why that model,
+and what an earlier version of this README got wrong, is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 The consult point between the two halves is a file: a PNG on the images repo is a
 valid `from` in a motion spec.
@@ -117,7 +117,28 @@ encoder in four shards, a 7.7 GB transformer, and a 1.7 GB VAE. They load into
 roughly half that as bf16, which is why a 16 GB card fits with about 400 MB to
 spare. Budget disk, not VRAM.
 
-## Measured on real hardware
+## Measured on a free runner
+
+`ubuntu-latest` (4 vCPU, 16 GB RAM, no GPU), `ltx-video-2b-distilled`, float32, 8 steps:
+
+| clip | frames | size | encode | load | per step | decode | render total | job |
+|---|---|---|---|---|---|---|---|---|
+| `forgemaster-smoke` | 49 (2 s) | 288x384 | 173 s | 43 s | 14 s | 16 s | 5 m 48 s | 8 m 30 s |
+| `forgemaster-10s` | 241 (10 s) | 384x512 | 239 s | 53 s | 168 s | 294 s | **32 m 17 s** | 38 m 15 s |
+
+- **Memory** peaks at 14.7 GB while the T5 loads, then holds about 14.3 GB through the
+  denoise. The workflow adds an 8 GB swapfile as a guard; the 10 s decode used up to 5.8 GB
+  of it. A larger canvas will lean on swap harder, so watch `<clip>.mem.log`.
+- **Time** scales with tokens, not frames alone: 384x512x241 is 7.9x the smoke's tokens
+  and cost 12x per step (attention is quadratic). The 6 hour ceiling leaves room for
+  larger canvases or longer clips.
+- **What it looks like:** coherent through all 241 frames, identity held, smoke and flame
+  move. The camera push was stronger than "very slow" asked for.
+
+Every run publishes `<clip>.mp4`, a JSON sidecar with these timings, the log and the
+memory samples to `renders/<clip>/` on the `renders` branch.
+
+## Measured on a local GPU (experimental)
 
 One clip, end to end, on an RTX 5060 Ti 16 GB (compute capability 12.0), 512x768,
 73 frames, 50 steps:

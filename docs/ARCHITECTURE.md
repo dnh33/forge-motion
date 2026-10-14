@@ -1,14 +1,25 @@
-# Why forge-motion is hybrid
+# Where forge-motion renders, and the claim that turned out wrong
 
-> **Status: experimental, and not the default.** The supported way to produce
-> imagery here is the cloud pipeline ([forge-images](https://github.com/dnh33/forge-images)).
-> A local run saturated the display's VRAM and froze the machine it ran on, which
-> is why the local path is kept for experimentation and nothing depends on it.
+> **Status (2026-10-14): motion renders on free CPU runners.** A 10 second,
+> 384x512, 241-frame clip took 32 minutes on `ubuntu-latest`
+> ([README](../README.md#measured-on-a-free-runner) has the table). The local GPU
+> path stays experimental: it saturated the display's VRAM and froze the machine.
 
-This document exists so the split is not mistaken for a shortcut. It is a
-constraint, and the constraint is severe.
+## What made it fit
 
-## The claim
+The original claim (kept below) priced the wrong model. Three choices close the gap:
+
+- **A 2B model, not 14B.** `ltxv-2b-0.9.8-distilled` is 5.9 GB of bf16 weights.
+- **8 steps, no CFG.** It is guidance- and timestep-distilled: 8 fixed timesteps,
+  one forward pass each, against the 50 (times two, with CFG) the estimate assumed.
+- **A compressed latent.** LTX's VAE compresses 32x32 in space and 8x in time, so
+  241 frames at 384x512 is about 6,000 tokens. Frames are not separate passes.
+- **Staged memory.** The T5 encoder (~9 GB in bf16) encodes the prompt and is freed
+  before the transformer loads, so the peak is the larger half, not the sum.
+
+The section below is the original reasoning, left as written so the mistake stays visible.
+
+## The claim (2026-10-08, superseded)
 
 Video diffusion does not fit a free GitHub-hosted runner. Not slowly. Not at a
 lower resolution. It does not fit.
@@ -36,15 +47,16 @@ timeout. The estimate is labelled as an estimate on purpose.
 | half | where | what it does |
 |---|---|---|
 | **frames** | CI, free | generate the still the motion starts from. This is [`forge-images`](https://github.com/dnh33/forge-images), unchanged. **This is the default path.** |
-| **motion** | your GPU | an image-to-video pass over that still. This repository. **Experimental: it can freeze the machine.** |
+| **motion** | CI, free (since 2026-10-14) | an image-to-video pass over that still: `render.yml`, `--device cpu`. **The default.** |
+| **motion, local** | your GPU | the same pass on a CUDA card. **Experimental: it froze the machine.** |
 
 The consult point is a file: a PNG in `renders/<set>/` on the images repo is a
 valid `from` in a motion spec. No service, no queue, no account.
 
 ## What this repository will not do
 
-- It will not pretend a CPU path exists "for CI". That path would time out, and
-  a workflow that always times out is worse than no workflow.
+- It will not offer a CPU path for a backend that has not been measured on one.
+  Only `ltx-video-2b-distilled` passes `check --device cpu`; the rest are refused.
 - It will not download a 9 to 30 GB model as a side effect of a test. `render`
   refuses before importing the heavy stack, and the test suite only ever
   exercises that refusal.
