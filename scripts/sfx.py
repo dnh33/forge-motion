@@ -50,7 +50,7 @@ def main(argv=None) -> int:
     sys.path.insert(0, os.getcwd())
 
     import torch  # noqa: PLC0415
-    import torchaudio  # noqa: PLC0415
+    import soundfile  # noqa: PLC0415
     from mmaudio.eval_utils import all_model_cfg, generate, load_video  # noqa: PLC0415
     from mmaudio.model.flow_matching import FlowMatching  # noqa: PLC0415
     from mmaudio.model.networks import get_my_mmaudio  # noqa: PLC0415
@@ -87,7 +87,9 @@ def main(argv=None) -> int:
     metrics["generate_s"] = round(time.perf_counter() - t, 1)
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    torchaudio.save(str(out), audio.float().cpu()[0], seq_cfg.sampling_rate)
+    # Not torchaudio.save: it now writes through torchcodec, whose PyPI wheel is a CUDA
+    # build that dies on a CPU runner looking for libnvrtc, after the audio is made.
+    soundfile.write(str(out), audio.float().cpu()[0].numpy().T, seq_cfg.sampling_rate)
     metrics.update(total_s=round(time.perf_counter() - t0, 1), peak_rss_gb=peak_rss_gb(),
                    seconds=round(info.duration_sec, 3), sampling_rate=seq_cfg.sampling_rate)
     Path(f"{out}.json").write_text(json.dumps({"video": video.name, "prompt": a.prompt,

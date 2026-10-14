@@ -150,7 +150,10 @@ jobs:
           BPM=$(python -c "import json,os;print(json.loads(os.environ['SCORE'])['bpm'])")
           KEY=$(python -c "import json,os;print(json.loads(os.environ['SCORE'])['key'])")
           SEED=$(python -c "import json,os;print(json.loads(os.environ['SCORE']).get('seed', 7))")
-          python scripts/music.py --acestep acestep --caption "$CAPTION" --duration "$TOTAL" \
+          # +4 s: asked for 30 s, the smoke score ended at ~26 s and left silence. The
+          # mix trims the score to the picture, so overshooting costs nothing.
+          LONG=$(python -c "import os;print(float(os.environ['TOTAL']) + 4)")
+          python scripts/music.py --acestep acestep --caption "$CAPTION" --duration "$LONG" \
             --bpm "$BPM" --key "$KEY" --seed "$SEED" --out out/score.flac 2>&1 | tee out/score.log
           rc=${PIPESTATUS[0]}; kill "$MON" || true; exit "$rc"
       - uses: actions/upload-artifact@v4
